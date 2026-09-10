@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated Cloudflare Worker bundle — megabytes of transpiled output
+    // that ESLint would otherwise try (and run out of memory) to parse.
+    ".open-next/**",
   ]),
 ]);
 
