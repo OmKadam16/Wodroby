@@ -1,0 +1,48 @@
+# Render Blueprint for Wardroby.
+#
+# Render runs the app as a real Node process (`next start`), which is the
+# reference way to run Next.js: Server Actions, route handlers and the
+# proxy-based auth in src/proxy.ts all work with zero extra configuration,
+# and there is no Worker bundle-size ceiling to stay under.
+#
+# To use: Render Dashboard -> New -> Blueprint -> pick this repository.
+# Render reads this file and then prompts for the two values marked
+# `sync: false` below.
+
+services:
+  - type: web
+    name: wardroby
+    runtime: node
+    plan: free
+    # Change to whichever region is closest to you and your testers.
+    region: oregon
+    branch: main
+
+    buildCommand: npm ci && npm run build
+    # `next start` reads the PORT that Render sets, so no flag is needed.
+    # Do NOT write `-p $PORT`: if PORT were ever unset the flag collapses to
+    # `-p ` and Next exits with "option '-p, --port <port>' argument missing".
+    startCommand: npm run start
+
+    # /login is public and server-rendered, so a 200 here proves the whole
+    # Next.js server is healthy, not just that the process is alive.
+    healthCheckPath: /login
+
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+
+      # `sync: false` means: never store the value in this file, prompt for it
+      # in the dashboard instead. Both are inlined into the bundle at BUILD
+      # time, and Render exposes env vars during the build, so setting them
+      # here is enough — no separate build-variable step as on Cloudflare.
+      #
+      # Copy from Supabase -> Project Settings -> API.
+      # Never add SUPABASE_SERVICE_ROLE_KEY; it bypasses RLS and this app
+      # never reads it.
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false

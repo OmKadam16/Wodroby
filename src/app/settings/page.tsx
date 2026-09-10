@@ -30,11 +30,9 @@ export default async function SettingsPage() {
             <Shirt className="size-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold">Manual wardrobe</h2>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Add garments with your camera or gallery — pick the season and
-              where you will wear them yourself. Outfits are assembled by
-              simple rules against the weather, no AI involved.
+            <h2 className="text-base font-semibold">How it works</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You tag each piece. Outfits are built from the weather — no AI.
             </p>
           </div>
         </section>

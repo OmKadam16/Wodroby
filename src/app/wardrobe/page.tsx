@@ -31,16 +31,13 @@ export default async function WardrobePage() {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Wardrobe
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Everything you own, tagged and ready to be styled.
-          </p>
         </div>
         <AddItemDialog />
       </div>
 
       {error && (
         <p className="mb-4 text-sm text-destructive">
-          Could not load your wardrobe: {error.message}
+          Couldn&apos;t load your wardrobe. {error.message}
         </p>
       )}
 

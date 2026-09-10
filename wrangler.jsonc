@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "wardroby",
+  "name": "wodroby",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-09-01",
   // `nodejs_compat` gives the Worker Node's built-in modules, which the Next.js
@@ -11,6 +11,10 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Publish to https://wodroby.om4kadam.workers.dev. Set explicitly
+  // rather than relying on the default, so the URL always exists after a
+  // deploy. Add a custom domain later under Settings -> Domains & Routes.
+  "workers_dev": true,
   "observability": {
     "enabled": true
   }

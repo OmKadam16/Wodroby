@@ -81,7 +81,7 @@ export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
           <Shirt className="size-6 text-muted-foreground" />
           <p className="text-sm font-medium">{items.length === 0 ? "Your wardrobe is empty" : "Nothing matches"}</p>
           <p className="max-w-xs text-sm text-muted-foreground">
-            {items.length === 0 ? "Tap + and add a few photos — one season tap per item is enough." : "Try another season filter."}
+            {items.length === 0 ? "Tap + to add your first piece." : "Try another filter."}
           </p>
         </div>
       ) : (

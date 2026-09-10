@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Bookmark, Droplets, Info, Loader2, MapPin, Sparkles, Sun, CloudRain, Snowflake } from "lucide-react";
 import { generateOutfitsAction, getCachedOutfits, getSavedOutfits } from "@/app/outfits/actions";
 import type { Outfit, OutfitRequest } from "@/lib/outfit-engine";
-import { OUTERWEAR_EXPECTED_BELOW_F, seasonFromTemp } from "@/lib/outfit-engine";
+import { seasonFromTemp } from "@/lib/outfit-engine";
 import type { Weather } from "@/lib/weather";
 import { OCCASIONS, occasionLabel, type Occasion } from "@/types/wardrobe";
 import { OutfitCard } from "@/components/outfits/outfit-card";
@@ -145,7 +145,7 @@ export function OutfitGenerator() {
         {weatherState === "loading" ? (
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
-            Reading your local forecast…
+            Loading weather…
           </div>
         ) : weather ? (
           <>
@@ -155,18 +155,18 @@ export function OutfitGenerator() {
                 {weather.temp_f}°F
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {weather.description} · feels like {weather.feels_like_f}°F · {weather.wind_mph} mph
+                {weather.description} · feels {weather.feels_like_f}°F
               </p>
               <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                 <SeasonIcon className="size-3.5" />
-                {seasonLabel} weather · {isRainy ? "rain-aware" : "dry"} · live from your location
+                {seasonLabel}{isRainy ? " · Rain" : ""}
               </p>
             </div>
           </>
         ) : (
           <div className="flex flex-1 flex-col gap-2">
             <p className="text-sm text-muted-foreground">
-              {weatherError ?? "No forecast yet."}
+              {weatherError ?? "No weather yet."}
             </p>
             <Button
               variant="outline"
@@ -181,20 +181,9 @@ export function OutfitGenerator() {
         )}
       </div>
 
-      <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3">
-        <p className="text-xs font-medium">How season filtering works</p>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          At <span className="font-medium text-foreground">{temp}°F {isRainy ? "· rainy" : ""}</span> we show <span className="font-medium text-foreground">{seasonLabel}</span> tops & dresses first, but
-          <span className="font-medium text-foreground"> jeans, skirts, shorts, trousers, shoes and accessories are flexible</span> — they are filtered 28–40°F looser than tops, so your favourite bottoms appear year-round. Every piece you own across all categories generates combos — up to 18 looks, with accessories optionally added.
-        </p>
-      </div>
-
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div>
-            <Label>What are you dressing for?</Label>
-            <p className="mt-1 text-sm text-muted-foreground">Tap one — outfits refresh automatically</p>
-          </div>
+          <Label>Occasion</Label>
           {pending && <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin" />Updating…</span>}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -207,7 +196,7 @@ export function OutfitGenerator() {
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex w-28 flex-col gap-1.5 sm:w-32">
-          <Label htmlFor="temp">Temperature °F</Label>
+          <Label htmlFor="temp">Temp °F</Label>
           <Input id="temp" type="number" value={temp} onChange={(e) => setTemp(Number(e.target.value))} />
         </div>
         <button type="button" onClick={() => setIsRainy((v) => !v)} className={cn("inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium active:scale-95 sm:h-10 sm:flex-none sm:rounded-md", isRainy ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-accent")}>
@@ -217,8 +206,6 @@ export function OutfitGenerator() {
           <Sparkles className={cn(pending && "animate-spin")} />Shuffle
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground -mt-4">Weather auto-detected — change occasion or temp and looks update by themselves. Shuffle for fresh combos.</p>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
@@ -232,9 +219,9 @@ export function OutfitGenerator() {
         saved.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
             <Bookmark className="mx-auto size-6 text-muted-foreground" />
-            <p className="mt-2 text-sm font-medium">No saved outfits</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-              Tap the bookmark on any look to keep it.
+            <p className="mt-2 text-sm font-medium">Nothing saved yet</p>
+            <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+              Tap the bookmark on a look to keep it.
             </p>
           </div>
         ) : (
@@ -308,12 +295,9 @@ export function OutfitGenerator() {
 
           {!outfits && !pending && (
             <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
-              <p className="text-sm font-medium">Ready when you are</p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                Outfits are assembled by fixed rules from your tagged wardrobe. Previous looks for this temperature and occasion will reappear — new clothes only add new combinations. Bookmark any look to keep it forever.
-                {temp < OUTERWEAR_EXPECTED_BELOW_F
-                  ? ` Below ${OUTERWEAR_EXPECTED_BELOW_F}°F a jacket is expected, and any look without one is flagged.`
-                  : ""}
+              <p className="text-sm font-medium">No looks yet</p>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                Pick an occasion, or tap Shuffle.
               </p>
             </div>
           )}
