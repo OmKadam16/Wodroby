@@ -1,6 +1,43 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ---------------------------------------------------------------------------
+# Secrets — nothing in this block may ever reach GitHub.
+# ---------------------------------------------------------------------------
+# Every env file, including .env.example. Real values live only on this
+# machine and in the host's dashboard.
+.env
+.env.*
+*.env
+.envrc
+
+# Key material of any kind.
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+*.asc
+*.gpg
+secrets.json
+credentials.json
+service-account*.json
+
+# ---------------------------------------------------------------------------
+# Supabase — schema, migrations and the local CLI state.
+# ---------------------------------------------------------------------------
+/supabase
+.supabase/
+.branches/
+.temp/
+
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
 /node_modules
 /.pnp
 .pnp.*
@@ -10,32 +47,41 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# ---------------------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------------------
 /.next/
 /out/
-
-# production
 /build
+/dist
+*.tsbuildinfo
+next-env.d.ts
 
-# misc
+# ---------------------------------------------------------------------------
+# Tooling / host state
+# ---------------------------------------------------------------------------
+/coverage
+.vercel
+.netlify
+.wrangler/
+.turbo/
+.eslintcache
+
+# ---------------------------------------------------------------------------
+# Editor & OS noise
+# ---------------------------------------------------------------------------
 .DS_Store
-*.pem
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json
+/.claude/
 
-# debug
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts

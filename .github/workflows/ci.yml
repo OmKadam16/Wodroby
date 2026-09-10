@@ -1,0 +1,76 @@
+# Continuous integration for Wordroby.
+#
+# Runs on every push and pull request: type-checks, lints and produces a real
+# production build, so a broken commit is caught before anyone deploys it.
+#
+# No secrets are used. The two NEXT_PUBLIC_* values below are throwaway
+# placeholders that only exist so the Supabase clients can be constructed at
+# build time — every page in this app is server-rendered on demand, so nothing
+# is prerendered and no real project is ever contacted during a build.
+# Never add real credentials here; they belong in the hosting provider's
+# environment settings, not in a workflow file.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Type-check, lint and build
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Fail if a secret was committed
+        run: |
+          # A cheap backstop for the .gitignore rules: refuse to pass CI if an
+          # env file, a private key or a Supabase service-role token is tracked.
+          if git ls-files | grep -iE '(^|/)\.env($|\.)|\.(pem|key|p12|pfx)$'; then
+            echo "::error::An environment or key file is tracked in git."
+            exit 1
+          fi
+          # Match actual key *values*, not prose that mentions them: JWTs
+          # (Supabase anon/service_role), OpenAI-style keys, and any
+          # service-role variable that has been given a value.
+          if git grep -nIE 'eyJ[A-Za-z0-9_-]{20,}\.|sk-[A-Za-z0-9_-]{20,}|SERVICE_ROLE[A-Z_]*[[:space:]]*[:=][[:space:]]*[^[:space:]"'"'"']' -- . ':!.github/workflows/ci.yml'; then
+            echo "::error::A secret-shaped string is committed in the repository."
+            exit 1
+          fi
+          echo "No secrets found in tracked files."

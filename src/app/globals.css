@@ -1,26 +1,108 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafaf9;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --primary: #1c1917;
+  --primary-foreground: #fafaf9;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #1c1917;
+  --accent: #f5f5f4;
+  --accent-foreground: #1c1917;
+  --destructive: #dc2626;
+  --destructive-foreground: #fafaf9;
+  --ring: #a8a29e;
+  --radius: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0c0a09;
+    --foreground: #fafaf9;
+    --card: #1c1917;
+    --card-foreground: #fafaf9;
+    --muted: #292524;
+    --muted-foreground: #a8a29e;
+    --border: #292524;
+    --input: #292524;
+    --primary: #fafaf9;
+    --primary-foreground: #1c1917;
+    --secondary: #292524;
+    --secondary-foreground: #fafaf9;
+    --accent: #292524;
+    --accent-foreground: #fafaf9;
+    --destructive: #ef4444;
+    --destructive-foreground: #fafaf9;
+    --ring: #57534e;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  /* Stops the rubber-band scroll revealing the page background behind fixed
+     bars on iOS. */
+  overscroll-behavior-y: none;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Horizontal chip rows: scrollable on a phone, without a visible scrollbar. */
+.scroll-row {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
+/* Transparent-PNG garments read better on a soft checker-free neutral tile. */
+.garment-tile {
+  background-image: radial-gradient(
+    circle at 50% 30%,
+    color-mix(in srgb, var(--muted) 92%, transparent),
+    var(--card)
+  );
 }

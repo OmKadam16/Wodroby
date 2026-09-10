@@ -1,0 +1,50 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { AddItemDialog } from "@/components/wardrobe/add-item-dialog";
+import { WardrobeGrid } from "@/components/wardrobe/wardrobe-grid";
+import { withSignedUrls } from "@/lib/storage";
+import type { WardrobeItem } from "@/types/wardrobe";
+
+export const dynamic = "force-dynamic";
+
+export default async function WardrobePage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data, error } = await supabase
+    .from("wardrobe_items")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  // The bucket is private: each photo gets a short-lived signed link.
+  const items = await withSignedUrls(supabase, (data ?? []) as WardrobeItem[]);
+
+  return (
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Wardrobe
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Everything you own, tagged and ready to be styled.
+          </p>
+        </div>
+        <AddItemDialog />
+      </div>
+
+      {error && (
+        <p className="mb-4 text-sm text-destructive">
+          Could not load your wardrobe: {error.message}
+        </p>
+      )}
+
+      <WardrobeGrid items={items} />
+    </main>
+  );
+}
