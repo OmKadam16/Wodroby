@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wardroby",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  // `nodejs_compat` gives the Worker Node's built-in modules, which the Next.js
+  // server runtime needs. `global_fetch_strictly_public` makes fetch() inside
+  // the Worker behave like a real public request, which OpenNext relies on.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+  // No R2/KV cache binding and no IMAGES binding on purpose:
+  // - every route is dynamic, so there is nothing to incrementally cache;
+  // - the single next/image usage is `unoptimized` (photos are already
+  //   compressed to 640px AVIF/WebP in the browser by src/lib/image.ts).
+  // Secrets are never stored here. NEXT_PUBLIC_SUPABASE_* are inlined at build
+  // time from GitHub Actions variables — see .github/workflows/deploy.yml.
+}

@@ -1,0 +1,104 @@
+# Deploy Wordroby to Cloudflare Workers.
+#
+# GitHub Pages cannot host this app: every route is server-rendered on demand
+# and the app relies on Server Actions, route handlers and proxy-based auth,
+# none of which run on a static file host. Cloudflare Workers runs the real
+# Next.js server via the OpenNext adapter (@opennextjs/cloudflare).
+#
+# ---------------------------------------------------------------------------
+# One-time setup (Settings -> Secrets and variables -> Actions -> Secrets):
+#
+#   CLOUDFLARE_API_TOKEN            Cloudflare dashboard -> My Profile ->
+#                                   API Tokens -> Create Token -> use the
+#                                   "Edit Cloudflare Workers" template.
+#   CLOUDFLARE_ACCOUNT_ID           Cloudflare dashboard -> Workers & Pages,
+#                                   shown in the right-hand sidebar.
+#   NEXT_PUBLIC_SUPABASE_URL        Supabase -> Project Settings -> API.
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY   Same page. This one is public by design
+#                                   (it ships in the browser bundle) and is
+#                                   safe because RLS is enabled on every
+#                                   table. Never add the service_role key.
+#
+# The API token is the only genuinely sensitive value here. Nothing in this
+# repository ever contains a credential; they live only in GitHub Secrets and
+# in the Cloudflare dashboard.
+# ---------------------------------------------------------------------------
+
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never let two deploys overwrite each other; queue them instead.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify required secrets are present
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          # Fail loudly and early. A missing NEXT_PUBLIC_* value would
+          # otherwise produce a build that deploys fine and then crashes for
+          # every visitor, which is much harder to diagnose.
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID \
+                      NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing repository secret: $name"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Build for Cloudflare
+        env:
+          # Inlined into the client bundle at build time, so they must be set
+          # here rather than only on the Worker at runtime.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run cf:build
+
+      - name: Deploy
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Also set on the Worker itself, so server-rendered requests can
+          # reach Supabase even though these are already inlined client-side.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          npx opennextjs-cloudflare deploy \
+            --var NEXT_PUBLIC_SUPABASE_URL:"$NEXT_PUBLIC_SUPABASE_URL" \
+            --var NEXT_PUBLIC_SUPABASE_ANON_KEY:"$NEXT_PUBLIC_SUPABASE_ANON_KEY"

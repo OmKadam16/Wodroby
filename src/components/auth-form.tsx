@@ -84,7 +84,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     <div className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
       <div className="mb-8 flex items-center gap-2">
         <Shirt className="size-6" />
-        <span className="text-lg font-semibold tracking-tight">Wordroby</span>
+        <span className="text-lg font-semibold tracking-tight">Wardroby</span>
       </div>
 
       <h1 className="text-2xl font-semibold tracking-tight">

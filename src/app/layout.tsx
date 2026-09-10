@@ -7,10 +7,10 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Wordroby — your digital wardrobe",
+  title: "Wardroby — your digital wardrobe",
   description:
-    "Photograph your clothes, let AI tag them, and get weather-aware outfit suggestions.",
-  appleWebApp: { capable: true, title: "Wordroby", statusBarStyle: "default" },
+    "Photograph your clothes and get weather-aware outfit suggestions.",
+  appleWebApp: { capable: true, title: "Wardroby", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

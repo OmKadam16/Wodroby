@@ -19,7 +19,7 @@ export async function Nav() {
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur md:hidden">
         <div className="flex h-14 items-center gap-2 px-4">
           <Shirt className="size-5" />
-          <span className="font-semibold tracking-tight">Wordroby</span>
+          <span className="font-semibold tracking-tight">Wardroby</span>
         </div>
       </header>
 
@@ -30,7 +30,7 @@ export async function Nav() {
             className="flex items-center gap-2 font-semibold"
           >
             <Shirt className="size-5" />
-            Wordroby
+            Wardroby
           </Link>
 
           <nav className="flex items-center gap-1">

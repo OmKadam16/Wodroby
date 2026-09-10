@@ -35,7 +35,7 @@ export default async function HomePage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-20">
       <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-        Wordroby
+        Wardroby
       </p>
       <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
         Your closet, sorted by the weather.

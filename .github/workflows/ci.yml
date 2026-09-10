@@ -1,4 +1,4 @@
-# Continuous integration for Wordroby.
+# Continuous integration for Wardroby.
 #
 # Runs on every push and pull request: type-checks, lints and produces a real
 # production build, so a broken commit is caught before anyone deploys it.

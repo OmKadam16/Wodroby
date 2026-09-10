@@ -52,7 +52,7 @@ type Draft = {
   season: SeasonId | null;
 };
 
-const LAST_KEY = "wordroby_last_add";
+const LAST_KEY = "wardroby_last_add";
 
 function loadLast(): { category: Category; sub: string; season: SeasonId } | null {
   try {

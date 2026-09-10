@@ -1,4 +1,4 @@
-# Wordroby
+# Wardroby
 
 A digital wardrobe: photograph your clothes, tag them yourself in bulk, then
 get outfit suggestions that match the weather outside.
