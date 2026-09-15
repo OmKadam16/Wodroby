@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { LogOut, Shirt } from "lucide-react";
+import { Shirt } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/sign-out-button";
 
 export const dynamic = "force-dynamic";
 
@@ -37,12 +37,7 @@ export default async function SettingsPage() {
           </div>
         </section>
 
-        <form action="/auth/signout" method="post">
-          <Button type="submit" variant="outline" className="w-full sm:w-auto">
-            <LogOut />
-            Sign out
-          </Button>
-        </form>
+        <SignOutButton variant="outline" size="default" />
       </div>
     </main>
   );

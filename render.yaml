@@ -24,9 +24,7 @@ services:
     # `-p ` and Next exits with "option '-p, --port <port>' argument missing".
     startCommand: npm run start
 
-    # /login is public and server-rendered, so a 200 here proves the whole
-    # Next.js server is healthy, not just that the process is alive.
-    healthCheckPath: /login
+    healthCheckPath: /api/health
 
     envVars:
       - key: NODE_VERSION

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { LogOut, Settings, Shirt, Sparkles } from "lucide-react";
+import { Settings, Shirt, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/sign-out-button";
 import { NavLink } from "@/components/nav-link";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
 
@@ -50,12 +50,7 @@ export async function Nav() {
 
           <div className="ml-auto flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{user.email}</span>
-            <form action="/auth/signout" method="post">
-              <Button type="submit" variant="ghost" size="icon" title="Sign out">
-                <LogOut className="size-4" />
-                <span className="sr-only">Sign out</span>
-              </Button>
-            </form>
+            <SignOutButton />
           </div>
         </div>
       </header>

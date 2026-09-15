@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Shirt } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+function safeNext(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/wardrobe";
+  return raw;
+}
+
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/wardrobe";
+  const next = safeNext(searchParams.get("next"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,62 +26,91 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
     setNotice(null);
 
+    const trimmedEmail = email.trim();
     const supabase = createClient();
 
-    if (mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        const msg = error.message.toLowerCase();
-        if (msg.includes("already registered") || msg.includes("already exists") || msg.includes("user already")) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-          if (signInError) {
-            setError(signInError.message);
+    try {
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: trimmedEmail,
+          password,
+        });
+        if (error) {
+          const msg = error.message.toLowerCase();
+          if (
+            msg.includes("already registered") ||
+            msg.includes("already exists") ||
+            msg.includes("user already")
+          ) {
+            const { data: signInData, error: signInError } =
+              await supabase.auth.signInWithPassword({
+                email: trimmedEmail,
+                password,
+              });
+            if (signInError) {
+              setError(
+                "That email is already registered. Sign in instead — if the password doesn't match, use password reset in Supabase.",
+              );
+              setPending(false);
+              return;
+            }
+            if (signInData.session) {
+              window.location.assign(next);
+              return;
+            }
+          } else {
+            setError(error.message);
             setPending(false);
             return;
           }
-          if (signInData.session) {
+        } else if (data.session) {
+          window.location.assign(next);
+          return;
+        } else if (data.user) {
+          const { data: signInData, error: signInError } =
+            await supabase.auth.signInWithPassword({
+              email: trimmedEmail,
+              password,
+            });
+          if (!signInError && signInData.session) {
             window.location.assign(next);
             return;
           }
-        } else {
-          setError(error.message);
+          setNotice(
+            "Account created but no session came back. Email confirmation may be on — check your inbox, then sign in.",
+          );
           setPending(false);
           return;
         }
-      } else if (data.session) {
-        window.location.assign(next);
-        return;
-      } else if (data.user) {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (!signInError && signInData.session) {
-          window.location.assign(next);
-          return;
-        }
-        setNotice("Account created! Signing you in...");
+        setError("Sign up failed. Please try again.");
         setPending(false);
         return;
       }
-      setError("Sign up failed. Please try again.");
-      setPending(false);
-      return;
-    }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      });
+      if (error) {
+        setError(error.message);
+        setPending(false);
+        return;
+      }
+      if (!data.session) {
+        setError("Could not create session. Try again.");
+        setPending(false);
+        return;
+      }
+      window.location.assign(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
       setPending(false);
-      return;
     }
-    if (!data.session) {
-      setError("Could not create session. Try again.");
-      setPending(false);
-      return;
-    }
-    window.location.assign(next);
   }
 
   return (
