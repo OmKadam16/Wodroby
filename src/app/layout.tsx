@@ -1,10 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { Nav } from "@/components/nav";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// The display serif: page titles, temperatures, outfit numbers.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  axes: ["SOFT", "WONK", "opsz"],
+});
 
 export const metadata: Metadata = {
   title: "Wardroby — your digital wardrobe",
@@ -20,8 +26,8 @@ export const viewport: Viewport = {
   // insets below keep content clear of them.
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0a09" },
+    { media: "(prefers-color-scheme: light)", color: "#fbf8f3" },
+    { media: "(prefers-color-scheme: dark)", color: "#14120f" },
   ],
 };
 
@@ -29,8 +35,14 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+    /* The font variables must sit on <html>, not <body>: Tailwind's `@theme`
+       emits --font-sans/--font-display on :root, and a :root declaration
+       cannot read a variable defined on a descendant. */
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable}`}
+    >
+      <body>
         <Nav />
         {/* Clears the fixed bottom tab bar on mobile. */}
         <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">

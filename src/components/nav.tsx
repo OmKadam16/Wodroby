@@ -17,9 +17,8 @@ export async function Nav() {
     <>
       {/* Mobile: a slim brand bar; navigation lives in the bottom tabs. */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur md:hidden">
-        <div className="flex h-14 items-center gap-2 px-4">
-          <Shirt className="size-5" />
-          <span className="font-semibold tracking-tight">Wardroby</span>
+        <div className="flex h-12 items-center justify-center px-4">
+          <span className="display text-lg tracking-[0.02em]">Wardroby</span>
         </div>
       </header>
 
@@ -27,9 +26,8 @@ export async function Nav() {
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
           <Link
             href="/wardrobe"
-            className="flex items-center gap-2 font-semibold"
+            className="display text-lg tracking-[0.02em]"
           >
-            <Shirt className="size-5" />
             Wardroby
           </Link>
 

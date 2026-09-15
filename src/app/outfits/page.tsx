@@ -15,7 +15,7 @@ export default async function OutfitsPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="display text-[32px] leading-none sm:text-4xl">
           Outfits
         </h1>
       </div>

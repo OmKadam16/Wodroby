@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { deleteItem } from "@/app/wardrobe/actions";
 import type { WardrobeItemView } from "@/lib/storage";
+import { CATEGORY_LABELS } from "@/types/wardrobe";
+import { seasonFromRange } from "@/lib/outfit-engine";
 
 export function ItemCard({ item }: { item: WardrobeItemView }) {
   const router = useRouter();
@@ -24,30 +26,40 @@ export function ItemCard({ item }: { item: WardrobeItemView }) {
   }
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-card">
-      <div className="relative aspect-square">
+    <div className="group">
+      <div className="garment-tile relative aspect-square overflow-hidden rounded-xl">
         <GarmentImage
           src={item.display_url}
           alt={item.item_name}
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 220px"
         />
+        {/* Always reachable on touch; hover-revealed from sm: up. */}
         <button
           type="button"
           onClick={handleDelete}
           disabled={pending}
           title="Delete item"
-          className="absolute right-2 top-2 flex size-9 items-center justify-center rounded-full bg-card/90 text-muted-foreground shadow-sm backdrop-blur transition-opacity hover:text-destructive focus-visible:opacity-100 sm:size-8 sm:opacity-0 sm:group-hover:opacity-100"
+          className="absolute right-1.5 top-1.5 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-surface/90 text-muted-foreground shadow-sm backdrop-blur transition hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
         >
           {pending ? (
-            <Loader2 className="size-4 animate-spin" />
+            <Loader2 className="size-3.5 animate-spin" />
           ) : (
-            <Trash2 className="size-4" />
+            <Trash2 className="size-3.5" />
           )}
           <span className="sr-only">Delete {item.item_name}</span>
         </button>
       </div>
+
+      <p className="mt-2 truncate text-[13px] leading-tight">
+        {item.item_name}
+      </p>
+      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+        {CATEGORY_LABELS[item.category]} ·{" "}
+        {seasonFromRange(item.min_temp_f, item.max_temp_f)}
+      </p>
+
       {error && (
-        <p className="absolute bottom-1 left-1 right-1 rounded bg-destructive px-1.5 py-1 text-center text-[11px] text-destructive-foreground">
+        <p className="mt-1 rounded bg-destructive px-1.5 py-1 text-center text-[11px] text-destructive-foreground">
           {error}
         </p>
       )}

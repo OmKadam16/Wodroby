@@ -272,6 +272,18 @@ export type GenerateOptions = {
   perSlotLimit?: number;
 };
 
+/**
+ * The season label a garment was tagged with, recovered from the temperature
+ * range the add-item flow stored for it (summer 68-105, winter 15-55,
+ * rainy 45-75, all-season 30-90). Used for the caption under each tile.
+ */
+export function seasonFromRange(minF: number, maxF: number): string {
+  if (minF >= 68) return "Summer";
+  if (maxF <= 55) return "Winter";
+  if (minF >= 45 && maxF <= 75) return "Rainy";
+  return "Any";
+}
+
 export function seasonFromTemp(temp: number, isRainy: boolean): string {
   if (isRainy) return "rainy";
   if (temp >= 68) return "summer";

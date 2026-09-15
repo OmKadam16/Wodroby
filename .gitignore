@@ -88,3 +88,10 @@ yarn-error.log*
 
 # Cloudflare / OpenNext build output
 .open-next/
+
+# ---------------------------------------------------------------------------
+# Claude Design source canvases — self-unpacking bundles, ~500KB each, with
+# fonts and images inlined as base64. Kept locally for reference; the design
+# they encode lives in src/app/globals.css and the components.
+# ---------------------------------------------------------------------------
+/design/

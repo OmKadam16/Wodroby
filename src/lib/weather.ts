@@ -54,9 +54,26 @@ export async function fetchWeather(lat: number, lon: number): Promise<Weather> {
   url.searchParams.set("temperature_unit", "fahrenheit");
   url.searchParams.set("wind_speed_unit", "mph");
 
-  const response = await fetch(url, { next: { revalidate: 600 } });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Weather request timed out. Try again.");
+    }
+    throw new Error("Could not reach the weather service. Try again.");
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) {
-    throw new Error(`Open-Meteo responded with ${response.status}`);
+    throw new Error(
+      `Weather service error (${response.status}). Try again in a moment.`,
+    );
   }
 
   const data = (await response.json()) as {

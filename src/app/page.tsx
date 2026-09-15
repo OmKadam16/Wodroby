@@ -37,7 +37,7 @@ export default async function HomePage() {
       <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
         Wardroby
       </p>
-      <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+      <h1 className="display mt-3 text-[40px] leading-[1.05] sm:text-6xl">
         Your closet, sorted by the weather.
       </h1>
       <p className="mt-4 max-w-xl text-base text-muted-foreground">

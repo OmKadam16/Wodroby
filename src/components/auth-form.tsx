@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Loader2, Shirt } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,11 +116,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
       <div className="mb-8 flex items-center gap-2">
-        <Shirt className="size-6" />
-        <span className="text-lg font-semibold tracking-tight">Wardroby</span>
+        <span className="display text-xl tracking-[0.02em]">Wardroby</span>
       </div>
 
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="display text-[32px] leading-none">
         {mode === "signup" ? "Create your closet" : "Welcome back"}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">

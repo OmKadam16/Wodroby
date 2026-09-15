@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { fetchWeather } from "@/lib/weather";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /** GET /api/weather?lat=..&lon=.. — proxies Open-Meteo (no API key needed). */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -14,11 +17,19 @@ export async function GET(request: Request) {
     );
   }
 
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    return NextResponse.json(
+      { error: "lat must be -90..90 and lon -180..180." },
+      { status: 400 },
+    );
+  }
+
   try {
     return NextResponse.json({ weather: await fetchWeather(lat, lon) });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Weather lookup failed.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const status = /timed out/i.test(message) ? 504 : 502;
+    return NextResponse.json({ error: message }, { status });
   }
 }
