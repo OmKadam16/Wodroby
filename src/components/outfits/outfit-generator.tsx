@@ -338,8 +338,8 @@ export function OutfitGenerator() {
       {/* ---------------------------------------------------------------- */}
       {/* Controls                                                         */}
       {/* ---------------------------------------------------------------- */}
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-11 items-center gap-2 rounded-[10px] border border-border bg-card px-3">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex h-11 shrink-0 items-center gap-2 rounded-[10px] border border-border bg-card px-3">
           <label htmlFor="temp" className="eyebrow">
             Temp
           </label>
@@ -421,7 +421,7 @@ export function OutfitGenerator() {
             body="Bookmark a look to keep it."
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 2xl:grid-cols-4">
             {saved.map((outfit, index) => (
               <OutfitCard
                 key={outfit.id}
@@ -460,7 +460,7 @@ export function OutfitGenerator() {
           )}
 
           {outfits && outfits.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 2xl:grid-cols-4">
               {outfits.map((outfit, index) => (
                 <OutfitCard
                   key={outfit.id}

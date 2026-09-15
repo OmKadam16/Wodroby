@@ -214,15 +214,15 @@ export function AddItemDialog() {
   return (
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) reset(); }}>
       <DialogTrigger asChild>
-        <Button className="hidden sm:inline-flex"><Plus />Add items</Button>
+        <Button className="hidden md:inline-flex"><Plus />Add items</Button>
       </DialogTrigger>
       <DialogTrigger asChild>
-        <button type="button" className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 sm:hidden">
+        <button type="button" className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 md:hidden">
           <Plus className="size-6" /><span className="sr-only">Add items</span>
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[92vh] sm:max-w-2xl" onDragOver={(e) => e.preventDefault()} onDrop={(e) => e.preventDefault()}>
+      <DialogContent className="max-h-[92dvh] sm:max-w-2xl" onDragOver={(e) => e.preventDefault()} onDrop={(e) => e.preventDefault()}>
         <div className="border-b border-border px-4 py-4 sm:px-5">
           <DialogTitle>{stage === "pick" ? "Add garments" : `Tag · ${drafts.length} item${drafts.length > 1 ? "s" : ""}`}</DialogTitle>
           <DialogDescription>{stage === "pick" ? "Bulk drop or camera — tag with one tap." : "One season tap per photo is enough. Name is optional."}</DialogDescription>

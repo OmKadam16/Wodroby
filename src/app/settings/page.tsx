@@ -16,7 +16,7 @@ export default async function SettingsPage() {
   if (!user) redirect("/login");
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-10">
+    <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
       <header className="mb-6">
         <h1 className="display text-[32px] leading-none sm:text-4xl">
           Settings

@@ -23,7 +23,7 @@ export async function Nav() {
       </header>
 
       <header className="sticky top-0 z-40 hidden border-b border-border bg-background/80 backdrop-blur md:block">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6 lg:px-8 2xl:max-w-7xl">
           <Link
             href="/wardrobe"
             className="display text-lg tracking-[0.02em]"
@@ -31,7 +31,7 @@ export async function Nav() {
             Wardroby
           </Link>
 
-          <nav className="flex items-center gap-1">
+          <nav className="flex shrink-0 items-center gap-1">
             <NavLink href="/wardrobe">
               <Shirt className="size-4" />
               Wardrobe
@@ -46,8 +46,10 @@ export async function Nav() {
             </NavLink>
           </nav>
 
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
+          <div className="ml-auto flex min-w-0 items-center gap-3">
+            <span className="hidden max-w-[22ch] truncate text-sm text-muted-foreground lg:inline">
+              {user.email}
+            </span>
             <SignOutButton />
           </div>
         </div>

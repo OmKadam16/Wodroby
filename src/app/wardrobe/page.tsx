@@ -25,7 +25,7 @@ export default async function WardrobePage() {
   const items = await withSignedUrls(supabase, (data ?? []) as WardrobeItem[]);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 2xl:max-w-7xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
         <div>
           <h1 className="display text-[32px] leading-none sm:text-4xl">
