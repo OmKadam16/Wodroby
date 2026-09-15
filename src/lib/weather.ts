@@ -54,25 +54,42 @@ export async function fetchWeather(lat: number, lon: number): Promise<Weather> {
   url.searchParams.set("temperature_unit", "fahrenheit");
   url.searchParams.set("wind_speed_unit", "mph");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      signal: controller.signal,
-      cache: "no-store",
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Weather request timed out. Try again.");
+  // Retry on 429/5xx with backoff; Open-Meteo rate-limits shared IPs.
+  // `next.revalidate` keeps repeat views (dev + phone on one IP) off origin.
+  let response: Response | null = null;
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      response = await fetch(url, {
+        signal: controller.signal,
+        next: { revalidate: 600 },
+      });
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new Error("Weather request timed out. Try again.");
+      }
+      throw new Error("Could not reach the weather service. Try again.");
     }
-    throw new Error("Could not reach the weather service. Try again.");
-  } finally {
     clearTimeout(timeout);
+    lastStatus = response.status;
+    if (response.ok) break;
+    if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      continue;
+    }
+    break;
   }
-  if (!response.ok) {
+  if (!response || !response.ok) {
+    if (lastStatus === 429) {
+      throw new Error(
+        "Too many weather requests right now. Wait a minute — your temp stays editable below.",
+      );
+    }
     throw new Error(
-      `Weather service error (${response.status}). Try again in a moment.`,
+      `Weather service error (${lastStatus}). Try again in a moment.`,
     );
   }
 

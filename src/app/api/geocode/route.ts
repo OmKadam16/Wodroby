@@ -29,16 +29,48 @@ export async function GET(request: Request) {
   url.searchParams.set("language", "en");
   url.searchParams.set("format", "json");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    if (!response.ok) {
+  let response: Response | null = null;
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      response = await fetch(url, {
+        signal: controller.signal,
+        next: { revalidate: 3600 },
+      });
+      clearTimeout(timeout);
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return NextResponse.json(
+          { error: "Place search timed out. Try again." },
+          { status: 504 },
+        );
+      }
       return NextResponse.json(
-        { error: `Place search failed (${response.status}). Try again.` },
+        { error: "Could not search places. Try again." },
+        { status: 502 },
+      );
+    }
+    lastStatus = response.status;
+    if (response.ok) break;
+    if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      continue;
+    }
+    break;
+  }
+  try {
+    if (!response || !response.ok) {
+      if (lastStatus === 429) {
+        return NextResponse.json(
+          { error: "Too many place searches right now. Wait a minute and try again." },
+          { status: 429 },
+        );
+      }
+      return NextResponse.json(
+        { error: `Place search failed (${lastStatus}). Try again.` },
         { status: 502 },
       );
     }
@@ -72,7 +104,5 @@ export async function GET(request: Request) {
       { error: "Could not search places. Try again." },
       { status: 502 },
     );
-  } finally {
-    clearTimeout(timeout);
   }
 }
