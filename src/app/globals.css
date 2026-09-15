@@ -55,10 +55,16 @@
   --destructive-foreground: #ffffff;
   --ring: var(--clay);
   --radius: 1rem;
+  color-scheme: light;
 }
 
+/* Dark mode resolves in three steps, so an explicit choice always wins:
+   - no [data-theme] on <html>  -> follow the OS (the media query below)
+   - [data-theme="dark"]        -> dark, whatever the OS says
+   - [data-theme="light"]       -> light, which is simply the :root block
+   The attribute is set before first paint by the script in layout.tsx. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --canvas: #14120f;
     --surface: #1e1b17;
     --sunken: #26221d;
@@ -77,7 +83,34 @@
     --input: #332e27;
     --destructive: #e5766c;
     --destructive-foreground: #14120f;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+    --canvas: #14120f;
+    --surface: #1e1b17;
+    --sunken: #26221d;
+    --ink: #f2ede6;
+    --ink-muted: #a39a90;
+    --clay: #e0703f;
+    --clay-hover: #c95f32;
+    --clay-tint: #3a241b;
+    --olive: #8fa179;
+    --olive-tint: #242a1e;
+
+    --inset: rgb(242 237 230 / 0.1);
+    --warm: rgb(224 112 63 / 0.06);
+
+    --border: #332e27;
+    --input: #332e27;
+    --destructive: #e5766c;
+    --destructive-foreground: #14120f;
+    color-scheme: dark;
+  }
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 @theme inline {

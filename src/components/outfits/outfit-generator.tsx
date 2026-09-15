@@ -20,6 +20,8 @@ import type { Weather, WeatherCondition } from "@/lib/weather";
 import { OCCASIONS, occasionLabel, type Occasion } from "@/types/wardrobe";
 import { OutfitCard } from "@/components/outfits/outfit-card";
 import { WeatherIcon } from "@/components/outfits/weather-icon";
+import { TempUnitToggle, useTempUnit } from "@/components/temp-unit-toggle";
+import { cToF, displayTemp, displayTempText } from "@/lib/temp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -73,6 +75,7 @@ export function OutfitGenerator() {
   const [tab, setTab] = useState<"generate" | "saved">("generate");
   const [saved, setSaved] = useState<Outfit[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [unit, setUnit] = useTempUnit();
 
   const request: OutfitRequest = {
     current_temp_f: temp,
@@ -211,12 +214,12 @@ export function OutfitGenerator() {
               <p className="eyebrow">Your location</p>
               <p className="mt-1.5 flex items-baseline gap-2.5">
                 <span className="display text-6xl leading-[0.9] tracking-[-0.03em]">
-                  {weather.temp_f}°
+                  {displayTemp(weather.temp_f, unit)}°
                 </span>
-                <span className="text-[15px] text-muted-foreground">F</span>
+                <span className="text-[15px] text-muted-foreground">{unit}</span>
               </p>
               <p className="mt-2.5 text-[15px]">
-                {weather.description} · feels like {weather.feels_like_f}°
+                {weather.description} · feels like {displayTemp(weather.feels_like_f, unit)}°
               </p>
             </div>
             <div className="grid justify-items-end gap-3">
@@ -343,11 +346,17 @@ export function OutfitGenerator() {
           <Input
             id="temp"
             type="number"
-            value={temp}
-            onChange={(e) => setTemp(Number(e.target.value))}
+            value={displayTemp(temp, unit)}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (!Number.isFinite(n)) return;
+              setTemp(unit === "C" ? Math.round(cToF(n)) : Math.round(n));
+            }}
             className="h-auto w-12 border-0 bg-transparent p-0 text-[15px] shadow-none focus-visible:ring-0"
           />
         </div>
+
+        <TempUnitToggle unit={unit} onChange={setUnit} />
 
         <button
           type="button"
@@ -439,14 +448,14 @@ export function OutfitGenerator() {
           {outfits && outfits.length > 0 && notice && (
             <div className="flex gap-3 rounded-2xl border border-border bg-muted/60 p-4">
               <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p className="text-[13px] leading-[1.45]">{notice}</p>
+              <p className="text-[13px] leading-[1.45]">{displayTempText(notice, unit)}</p>
             </div>
           )}
 
           {outfits && outfits.length === 0 && (
             <EmptyState
-              title={`No outfits for ${temp}°${isRainy ? " and rain" : ""}`}
-              body={emptyReason ?? ""}
+              title={`No outfits for ${displayTemp(temp, unit)}°${unit}${isRainy ? " and rain" : ""}`}
+              body={displayTempText(emptyReason ?? "", unit)}
             />
           )}
 

@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { Shirt } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/sign-out-button";
+import { TempUnitSetting } from "@/components/temp-unit-setting";
+import { ThemeSetting } from "@/components/theme-setting";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,10 @@ export default async function SettingsPage() {
             </p>
           </div>
         </section>
+
+        <TempUnitSetting />
+
+        <ThemeSetting />
 
         <SignOutButton variant="outline" size="default" />
       </div>

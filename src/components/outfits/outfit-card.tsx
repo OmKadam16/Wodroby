@@ -2,6 +2,8 @@ import { useState, useTransition } from "react";
 import { GarmentImage } from "@/components/garment-image";
 import { AlertTriangle, Bookmark, Check, Loader2, Sparkles } from "lucide-react";
 import type { MatchLevel, Outfit, OutfitRequest } from "@/lib/outfit-engine";
+import { useTempUnit } from "@/components/temp-unit-toggle";
+import { displayTempText } from "@/lib/temp";
 import { toggleSaveOutfit } from "@/app/outfits/actions";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_LABELS } from "@/types/wardrobe";
@@ -51,6 +53,7 @@ export function OutfitCard({
 }) {
   const [isSaved, setIsSaved] = useState(!!saved);
   const [pending, startTransition] = useTransition();
+  const [unit] = useTempUnit();
   const MatchIcon = MATCH_ICON[outfit.matchLevel];
 
   function handleSave() {
@@ -123,7 +126,7 @@ export function OutfitCard({
           {outfit.reasons.slice(0, 3).map((reason) => (
             <li key={reason} className="flex gap-2 text-[13px] leading-[1.45]">
               <Check className="mt-0.5 size-3.5 shrink-0 text-olive" />
-              <span>{reason}</span>
+              <span>{displayTempText(reason, unit)}</span>
             </li>
           ))}
           {outfit.compromises.map((note) => (
@@ -132,7 +135,7 @@ export function OutfitCard({
               className="flex gap-2 text-[13px] leading-[1.45] text-muted-foreground"
             >
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-primary" />
-              <span>{note}</span>
+              <span>{displayTempText(note, unit)}</span>
             </li>
           ))}
         </ul>
