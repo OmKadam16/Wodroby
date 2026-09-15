@@ -168,19 +168,66 @@ async function fetchWeatherMetNo(lat: number, lon: number): Promise<Weather> {
  * weather down in production while dev worked fine — so a MET Norway fallback
  * (separate infrastructure, also keyless) keeps the feature alive.
  */
-async function fetchWeatherOpenMeteo(
-  lat: number,
-  lon: number,
-): Promise<Weather> {
+export type OpenMeteoResponse = {
+  current?: {
+    temperature_2m?: number;
+    apparent_temperature?: number;
+    weather_code?: number;
+    wind_speed_10m?: number;
+    precipitation?: number;
+  };
+};
+
+/**
+ * Coordinates are rounded to 2dp (~1.1 km) on purpose. Raw GPS differs on
+ * every reading, which made each request a unique URL and left the 10-minute
+ * fetch cache with a 0% hit rate. Rounding lets nearby readings share one
+ * cache entry, and sends a little less precision to a third party.
+ */
+export function buildOpenMeteoUrl(lat: number, lon: number): URL {
   const url = new URL("https://api.open-meteo.com/v1/forecast");
-  url.searchParams.set("latitude", String(lat));
-  url.searchParams.set("longitude", String(lon));
+  url.searchParams.set("latitude", lat.toFixed(2));
+  url.searchParams.set("longitude", lon.toFixed(2));
   url.searchParams.set(
     "current",
     "temperature_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation",
   );
   url.searchParams.set("temperature_unit", "fahrenheit");
   url.searchParams.set("wind_speed_unit", "mph");
+  return url;
+}
+
+/** Shared by the server route and the browser, so both read Open-Meteo alike. */
+export function openMeteoToWeather(json: unknown): Weather {
+  const current = (json as OpenMeteoResponse).current;
+  if (!current || typeof current.temperature_2m !== "number") {
+    throw new Error("Open-Meteo returned no current conditions.");
+  }
+
+  const code = current.weather_code ?? 3;
+  const { condition, description } = interpretCode(code);
+  const wind = current.wind_speed_10m ?? 0;
+
+  return {
+    temp_f: Math.round(current.temperature_2m),
+    feels_like_f: Math.round(
+      current.apparent_temperature ?? current.temperature_2m,
+    ),
+    condition: wind >= 20 && condition === "cloudy" ? "windy" : condition,
+    description,
+    is_rainy:
+      condition === "rainy" ||
+      condition === "stormy" ||
+      (current.precipitation ?? 0) > 0,
+    wind_mph: Math.round(wind),
+  };
+}
+
+async function fetchWeatherOpenMeteo(
+  lat: number,
+  lon: number,
+): Promise<Weather> {
+  const url = buildOpenMeteoUrl(lat, lon);
 
   // Retry on 429/5xx with backoff; Open-Meteo rate-limits shared IPs.
   // `next.revalidate` keeps repeat views (dev + phone on one IP) off origin.
@@ -204,8 +251,11 @@ async function fetchWeatherOpenMeteo(
     clearTimeout(timeout);
     lastStatus = response.status;
     if (response.ok) break;
-    if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
-      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    // A 429 here means the shared egress IP is out of quota; that will not
+    // clear in under a second, so fail straight through to the backup instead
+    // of burning 2.4s of backoff first. Only 5xx is worth retrying.
+    if (response.status >= 500 && response.status < 600) {
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
       continue;
     }
     break;
@@ -219,38 +269,7 @@ async function fetchWeatherOpenMeteo(
     );
   }
 
-  const data = (await response.json()) as {
-    current?: {
-      temperature_2m?: number;
-      apparent_temperature?: number;
-      weather_code?: number;
-      wind_speed_10m?: number;
-      precipitation?: number;
-    };
-  };
-
-  const current = data.current;
-  if (!current || typeof current.temperature_2m !== "number") {
-    throw new Error("Open-Meteo returned no current conditions.");
-  }
-
-  const code = current.weather_code ?? 3;
-  const { condition, description } = interpretCode(code);
-  const wind = current.wind_speed_10m ?? 0;
-
-  return {
-    temp_f: Math.round(current.temperature_2m),
-    feels_like_f: Math.round(
-      current.apparent_temperature ?? current.temperature_2m,
-    ),
-    condition: wind >= 20 && condition === "cloudy" ? "windy" : condition,
-    description,
-    is_rainy:
-      condition === "rainy" ||
-      condition === "stormy" ||
-      (current.precipitation ?? 0) > 0,
-    wind_mph: Math.round(wind),
-  };
+  return openMeteoToWeather(await response.json());
 }
 
 /**

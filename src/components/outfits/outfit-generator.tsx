@@ -17,6 +17,7 @@ import {
 import type { Outfit, OutfitRequest } from "@/lib/outfit-engine";
 import { seasonFromTemp } from "@/lib/outfit-engine";
 import type { Weather, WeatherCondition } from "@/lib/weather";
+import { fetchWeatherDirect } from "@/lib/weather-client";
 import { OCCASIONS, occasionLabel, type Occasion } from "@/types/wardrobe";
 import { OutfitCard } from "@/components/outfits/outfit-card";
 import { WeatherIcon } from "@/components/outfits/weather-icon";
@@ -97,19 +98,31 @@ export function OutfitGenerator() {
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          const response = await fetch(
-            `/api/weather?lat=${latitude}&lon=${longitude}`,
-          );
-          const payload = (await response.json()) as {
-            weather?: Weather;
-            error?: string;
-          };
-          if (!response.ok || !payload.weather) {
-            throw new Error(payload.error ?? "Weather lookup failed.");
+
+          // Open-Meteo direct from the browser first: that spends this
+          // visitor's own rate-limit quota. The server route stays as a
+          // fallback for blocked networks or an Open-Meteo outage — it has
+          // the MET Norway backup behind it.
+          let result: Weather;
+          try {
+            result = await fetchWeatherDirect(latitude, longitude);
+          } catch {
+            const response = await fetch(
+              `/api/weather?lat=${latitude}&lon=${longitude}`,
+            );
+            const payload = (await response.json()) as {
+              weather?: Weather;
+              error?: string;
+            };
+            if (!response.ok || !payload.weather) {
+              throw new Error(payload.error ?? "Weather lookup failed.");
+            }
+            result = payload.weather;
           }
-          setWeather(payload.weather);
-          setTemp(payload.weather.temp_f);
-          setIsRainy(payload.weather.is_rainy);
+
+          setWeather(result);
+          setTemp(result.temp_f);
+          setIsRainy(result.is_rainy);
           setWeatherState("idle");
         } catch (err) {
           setWeatherState("error");
@@ -447,7 +460,7 @@ export function OutfitGenerator() {
         <>
           {outfits && outfits.length > 0 && notice && (
             <div className="flex gap-3 rounded-2xl border border-border bg-muted/60 p-4">
-              <Info className="mt-0.5 size-4 shrink-0 text-primary" />
+              <Info className="mt-0.5 size-4 shrink-0 text-clay-ink" />
               <p className="text-[13px] leading-[1.45]">{displayTempText(notice, unit)}</p>
             </div>
           )}

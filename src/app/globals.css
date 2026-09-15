@@ -19,6 +19,9 @@
   --clay: #c0512c;
   --clay-hover: #a84424;
   --clay-tint: #f7e7e0;
+  /* The accent used as a foreground mark. A theme whose accent is a pale fill
+     (see kitty) overrides this with something dark enough to read. */
+  --clay-ink: var(--clay);
   --olive: #4a5340;
   --olive-tint: #e8ebe2;
 
@@ -62,9 +65,12 @@
    - no [data-theme] on <html>  -> follow the OS (the media query below)
    - [data-theme="dark"]        -> dark, whatever the OS says
    - [data-theme="light"]       -> light, which is simply the :root block
+   - [data-theme="kitty"]       -> the Hello Kitty palette below
+   The media query keys off the *absence* of the attribute, so any explicit
+   theme wins without needing to be named here.
    The attribute is set before first paint by the script in layout.tsx. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme]) {
     --canvas: #14120f;
     --surface: #1e1b17;
     --sunken: #26221d;
@@ -113,6 +119,56 @@
   color-scheme: light;
 }
 
+/* ---------------------------------------------------------------------------
+   Hello Kitty — a pastel Pantone theme.
+
+   Pale yellow (P 1-3 U) and mint (9063 U) carry the light surfaces; the pink
+   (3568 U), rose quartz (13-1520 TCX) and lavender (9344 U) carry the cards
+   and controls. Text stays black throughout, so every pastel is used as a
+   ground rather than as type.
+   --------------------------------------------------------------------------- */
+:root[data-theme="kitty"] {
+  color-scheme: light;
+
+  --canvas: #faf3b4;   /* P 1-3 U — pale yellow, the page */
+  --surface: #e6a8c6;  /* 3568 U — pink, the cards */
+  --sunken: #dcede4;   /* 9063 U — mint, tiles and tracks */
+  --border: #d18fb0;
+
+  --ink: #000000;
+  --ink-muted: #453842;
+
+  --clay: #c9b5e3;     /* 9344 U — lavender, primary actions */
+  --clay-hover: #b79fd8;
+  --clay-tint: #efe7fa;
+  /* A pale lavender icon vanishes on a pink card, so marks use a deeper
+     shade of the same hue. Fills keep the pastel. */
+  --clay-ink: #6f4f9e;
+
+  /* Rose Quartz reads as a fill but not as type, so --olive (which is only
+     ever a border or text) takes the deeper shade and the tint stays pale. */
+  --olive: #8f4a52;
+  --olive-tint: #f8d9d7;
+
+  --inset: rgb(0 0 0 / 0.14);
+  --warm: rgb(230 168 198 / 0.07);
+
+  /* Black on every pastel, per the brief. */
+  --primary-foreground: #000000;
+  --secondary-foreground: #000000;
+  --destructive: #e0899a;
+  --destructive-foreground: #000000;
+
+  /* Weather tints pulled toward the pastel range so the header does not
+     fight the palette. */
+  --sunny: #ebc85a;
+  --cloudy: #a9b8c4;
+  --rainy: #8fafcb;
+  --snowy: #beddeb;
+  --hot: #ee9e86;
+  --cold: #9fb4d6;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -137,6 +193,7 @@
   --color-clay: var(--clay);
   --color-clay-hover: var(--clay-hover);
   --color-clay-tint: var(--clay-tint);
+  --color-clay-ink: var(--clay-ink);
   --color-olive: var(--olive);
   --color-olive-tint: var(--olive-tint);
   --color-sunny: var(--sunny);

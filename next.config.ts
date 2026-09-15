@@ -19,7 +19,9 @@ const csp = [
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
   // Supabase auth, database and storage. OpenAI is called from the server only.
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co${isDev ? " ws://localhost:*" : ""}`,
+  // Open-Meteo is called straight from the browser so each visitor spends
+  // their own rate-limit quota rather than the server's shared egress IP.
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com${isDev ? " ws://localhost:*" : ""}`,
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",

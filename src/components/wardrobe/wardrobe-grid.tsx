@@ -116,7 +116,7 @@ export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
                 setTab("all");
                 setSeason("any");
               }}
-              className="text-[13px] font-medium text-primary underline underline-offset-4"
+              className="text-[13px] font-medium text-clay-ink underline underline-offset-4"
             >
               Clear filters
             </button>

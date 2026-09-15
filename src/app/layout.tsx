@@ -42,6 +42,10 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable}`}
+      // The blocking theme script above stamps data-theme before hydration,
+      // so the DOM legitimately differs from SSR HTML. React never manages
+      // that attribute — ignore it during hydration instead of erroring.
+      suppressHydrationWarning
     >
       <head>
         {/* Applies a saved theme before first paint, so switching pages or

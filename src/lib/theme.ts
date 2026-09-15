@@ -1,4 +1,4 @@
-export const THEMES = ["light", "dark", "system"] as const;
+export const THEMES = ["light", "dark", "kitty", "system"] as const;
 export type Theme = (typeof THEMES)[number];
 
 export const THEME_KEY = "wordroby_theme";
@@ -45,6 +45,9 @@ export const THEME_EVENT = "wordroby:themechange";
  * Runs before first paint, inlined into <head>, so the page never flashes the
  * wrong palette. Kept dependency-free and tiny because it blocks rendering.
  */
+/** Every theme that pins an explicit palette. "system" is the absence of one. */
+const EXPLICIT: Theme[] = THEMES.filter((t): t is Theme => t !== "system");
+
 export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
   THEME_KEY,
-)});if(t==="dark"||t==="light"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;
+)});if(${JSON.stringify(EXPLICIT)}.indexOf(t)>-1){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;

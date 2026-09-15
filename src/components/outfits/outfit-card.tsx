@@ -86,7 +86,7 @@ export function OutfitCard({
             size="icon"
             className={cn(
               "-mr-2 ml-auto size-11 shrink-0",
-              isSaved ? "text-primary" : "text-muted-foreground",
+              isSaved ? "text-clay-ink" : "text-muted-foreground",
             )}
             onClick={handleSave}
             disabled={pending}
@@ -134,7 +134,7 @@ export function OutfitCard({
               key={note}
               className="flex gap-2 text-[13px] leading-[1.45] text-muted-foreground"
             >
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-clay-ink" />
               <span>{displayTempText(note, unit)}</span>
             </li>
           ))}
