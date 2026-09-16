@@ -53,11 +53,43 @@ export const OCCASIONS = [
   "religious_service",
 ] as const;
 
+/** Calendar seasons, multi-select. A garment names the seasons it belongs to
+ *  directly; `src/lib/seasons.ts` turns that into the temperature range the
+ *  outfit engine scores against. Rain is deliberately *not* a season — it is
+ *  orthogonal (a parka is winter and rain-ready) and lives in `rain_ready`. */
+export const SEASONS = ["spring", "summer", "fall", "winter"] as const;
+
+/** Visual attributes. Each is an estimate read off the photo, so every one of
+ *  them is allowed to be null — "we could not tell" is a real answer and is
+ *  always preferable to a confident guess. */
+export const SLEEVE_LENGTHS = [
+  "sleeveless",
+  "short",
+  "three_quarter",
+  "long",
+] as const;
+export const APPARENT_WEIGHTS = ["light", "medium", "heavy"] as const;
+export const WARMTH_LEVELS = ["low", "medium", "high"] as const;
+
 export type Category = (typeof CATEGORIES)[number];
 export type Formality = (typeof FORMALITIES)[number];
 export type LayeringRole = (typeof LAYERING_ROLES)[number];
+export type Condition = (typeof CONDITIONS)[number];
 export type Occasion = (typeof OCCASIONS)[number];
+export type Season = (typeof SEASONS)[number];
+export type SleeveLength = (typeof SLEEVE_LENGTHS)[number];
+export type ApparentWeight = (typeof APPARENT_WEIGHTS)[number];
+export type WarmthLevel = (typeof WARMTH_LEVELS)[number];
 
+export function isSeason(value: string): value is Season {
+  return (SEASONS as readonly string[]).includes(value);
+}
+
+/** A row as Postgres returned it. The array and attribute columns are typed
+ *  loosely on purpose: the CHECK constraints permit values the unions do not
+ *  (an empty `seasons`, a hand-edited row), and a cached outfit snapshot can
+ *  predate the columns entirely. Narrow at the use site — `itemSeasons()` for
+ *  seasons — rather than making TypeScript vouch for the database. */
 export type WardrobeItem = {
   id: string;
   user_id: string;
@@ -69,6 +101,11 @@ export type WardrobeItem = {
   primary_color: string;
   secondary_colors: string[];
   formality: Formality;
+  seasons: string[];
+  rain_ready: boolean;
+  sleeve_length: SleeveLength | null;
+  apparent_weight: ApparentWeight | null;
+  warmth: WarmthLevel | null;
   min_temp_f: number;
   max_temp_f: number;
   suitable_conditions: string[];
@@ -76,23 +113,6 @@ export type WardrobeItem = {
   wear_notes: string | null;
   layering_role: LayeringRole;
   created_at: string;
-};
-
-export type GarmentTags = {
-  item_name: string;
-  category: Category;
-  sub_category: string;
-  primary_color: string;
-  secondary_colors: string[];
-  formality: Formality;
-  weather_compatibility: {
-    min_temp_f: number;
-    max_temp_f: number;
-    suitable_conditions: string[];
-  };
-  occasions: string[];
-  wear_notes: string;
-  layering_role: LayeringRole;
 };
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -105,7 +125,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
 };
 
 export const SUB_CATEGORIES: Record<Category, string[]> = {
-  top: ["t-shirt", "shirt", "blouse", "sweater", "hoodie", "tank", "polo", "crop top", "tunic", "vest"],
+  top: ["t-shirt", "shirt", "blouse", "sweater", "hoodie", "sweatshirt", "tank", "polo", "crop top", "tunic", "vest"],
   bottom: ["jeans", "trousers", "skirt", "shorts", "leggings", "joggers", "cargo pants", "short skirt", "palazzo"],
   one_piece: ["dress", "jumpsuit", "romper", "saree", "gown", "kurta"],
   outerwear: ["jacket", "coat", "blazer", "cardigan", "shrug", "windbreaker", "parka"],
@@ -127,6 +147,32 @@ export const LAYERING_LABELS: Record<LayeringRole, string> = {
   outerwear: "Outerwear",
   standalone: "Standalone",
   footwear: "Footwear",
+};
+
+export const SEASON_LABELS: Record<Season, string> = {
+  spring: "Spring",
+  summer: "Summer",
+  fall: "Fall",
+  winter: "Winter",
+};
+
+export const SLEEVE_LABELS: Record<SleeveLength, string> = {
+  sleeveless: "Sleeveless",
+  short: "Short sleeve",
+  three_quarter: "3/4 sleeve",
+  long: "Long sleeve",
+};
+
+export const WEIGHT_LABELS: Record<ApparentWeight, string> = {
+  light: "Lightweight",
+  medium: "Midweight",
+  heavy: "Heavyweight",
+};
+
+export const WARMTH_LABELS: Record<WarmthLevel, string> = {
+  low: "Cool",
+  medium: "Medium warmth",
+  high: "Warm",
 };
 
 export const OCCASION_LABELS: Record<Occasion, string> = {

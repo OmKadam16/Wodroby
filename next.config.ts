@@ -13,7 +13,18 @@ const isDev = process.env.NODE_ENV === "development";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  // 'wasm-unsafe-eval' lets the browser compile the MobileCLIP2 WebAssembly
+  // backend. It permits compiling WASM and nothing else — it does not restore
+  // eval() for JavaScript.
+  //
+  // blob: is what ONNX Runtime needs: it assembles its backend at runtime and
+  // loads it with a dynamic import() of a blob URL it just created. Without it
+  // the only symptom is "no available backend found". The blobs come from
+  // scripts already allowed by 'self', so this does not widen what code may
+  // reach the page — only how it is loaded.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:${isDev ? " 'unsafe-eval'" : ""}`,
+  // The same backend also starts its threads as blob: workers.
+  "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline'",
   // Signed storage links and the local object URL used for the upload preview.
   "img-src 'self' data: blob: https://*.supabase.co",
@@ -21,7 +32,17 @@ const csp = [
   // Supabase auth, database and storage. OpenAI is called from the server only.
   // Open-Meteo is called straight from the browser so each visitor spends
   // their own rate-limit quota rather than the server's shared egress IP.
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com${isDev ? " ws://localhost:*" : ""}`,
+  //
+  // Hugging Face serves the MobileCLIP2-S0 weights (it redirects to cdn-lfs
+  // hosts under hf.co), and jsDelivr serves the ONNX Runtime WebAssembly that
+  // executes them — Transformers.js fetches the runtime from there by default,
+  // pinned to the onnxruntime-web version in package-lock. Narrowed to the npm
+  // mirror path rather than the whole CDN, and it is connect-src only: these
+  // are fetched as data, not executed as page scripts.
+  //
+  // Only the model is fetched. The garment photo is analysed on the device and
+  // is never uploaded anywhere but the user's own Supabase storage.
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com https://huggingface.co https://*.hf.co https://cdn.jsdelivr.net/npm/${isDev ? " ws://localhost:*" : ""}`,
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",

@@ -37,6 +37,8 @@
   --snowy: #9fc3d4;
   --hot: #d4703a;
   --cold: #6e86a8;
+  --spring: #5f9150;
+  --fall: #b06a2c;
 
   /* Semantic aliases used by the components */
   --background: var(--canvas);
@@ -171,6 +173,8 @@
   --snowy: #b6d8e8;
   --hot: #ee9e86;
   --cold: #9fb4d6;
+  --spring: #9ecf8e;
+  --fall: #e5aa6b;
 }
 
 /* Light surfaces inside the Kuromi theme flip the type back to dark.
@@ -202,6 +206,8 @@
   --snowy: #4f7f96;
   --hot: #b9552f;
   --cold: #47618c;
+  --spring: #3d6b31;
+  --fall: #8a4f1c;
   color: var(--foreground);
 }
 
@@ -246,6 +252,8 @@
   --snowy: #9fc3d4;
   --hot: #ee9e86;
   --cold: #6e86a8;
+  --spring: #4e8f45;
+  --fall: #b26a22;
 }
 
 @theme inline {
@@ -281,6 +289,8 @@
   --color-snowy: var(--snowy);
   --color-hot: var(--hot);
   --color-cold: var(--cold);
+  --color-spring: var(--spring);
+  --color-fall: var(--fall);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 4px);

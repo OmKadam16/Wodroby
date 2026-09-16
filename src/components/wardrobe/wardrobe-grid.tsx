@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Shirt, Sun, Snowflake, CloudRain, Sparkles } from "lucide-react";
+import { Shirt, Sun, Snowflake, Sprout, Leaf, Sparkles } from "lucide-react";
 import { ItemCard } from "@/components/wardrobe/item-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WardrobeItemView } from "@/lib/storage";
-import type { Category } from "@/types/wardrobe";
+import type { Category, Season } from "@/types/wardrobe";
+import { itemSeasons } from "@/lib/seasons";
 import { cn } from "@/lib/utils";
 
 const TABS: { value: string; label: string; categories: Category[] }[] = [
@@ -24,13 +25,14 @@ const SEASON_CHIPS: {
   id: string;
   label: string;
   icon: typeof Sun;
-  temp: number | null;
+  season: Season | null;
   tone: string;
 }[] = [
-  { id: "any", label: "Any", icon: Sparkles, temp: null, tone: "text-muted-foreground" },
-  { id: "summer", label: "Summer", icon: Sun, temp: 85, tone: "text-sunny" },
-  { id: "winter", label: "Winter", icon: Snowflake, temp: 40, tone: "text-snowy" },
-  { id: "rainy", label: "Rainy", icon: CloudRain, temp: 60, tone: "text-rainy" },
+  { id: "any", label: "All", icon: Sparkles, season: null, tone: "text-muted-foreground" },
+  { id: "spring", label: "Spring", icon: Sprout, season: "spring", tone: "text-spring" },
+  { id: "summer", label: "Summer", icon: Sun, season: "summer", tone: "text-sunny" },
+  { id: "fall", label: "Fall", icon: Leaf, season: "fall", tone: "text-fall" },
+  { id: "winter", label: "Winter", icon: Snowflake, season: "winter", tone: "text-snowy" },
 ];
 
 export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
@@ -39,11 +41,10 @@ export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
 
   const filtered = useMemo(() => {
     const categories = TABS.find((t) => t.value === tab)?.categories ?? [];
-    const chip = SEASON_CHIPS.find((s) => s.id === season);
-    const tempValue = chip?.temp ?? null;
+    const wanted = SEASON_CHIPS.find((s) => s.id === season)?.season ?? null;
     return items.filter((item) => {
       if (categories.length > 0 && !categories.includes(item.category)) return false;
-      if (tempValue !== null && (item.min_temp_f > tempValue || item.max_temp_f < tempValue)) return false;
+      if (wanted && !itemSeasons(item).includes(wanted)) return false;
       return true;
     });
   }, [items, tab, season]);

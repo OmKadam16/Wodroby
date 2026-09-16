@@ -2,13 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { conditionsFor, seasonsToTempRange } from "@/lib/seasons";
 import {
+  APPARENT_WEIGHTS,
   CATEGORIES,
   FORMALITIES,
+  isSeason,
   LAYERING_ROLES,
+  SLEEVE_LENGTHS,
+  WARMTH_LEVELS,
+  type ApparentWeight,
   type Category,
   type Formality,
   type LayeringRole,
+  type Season,
+  type SleeveLength,
+  type WarmthLevel,
 } from "@/types/wardrobe";
 
 export type SaveItemInput = {
@@ -19,13 +28,25 @@ export type SaveItemInput = {
   primary_color: string;
   secondary_colors: string[];
   formality: Formality;
-  min_temp_f: number;
-  max_temp_f: number;
-  suitable_conditions: string[];
+  seasons: Season[];
+  rain_ready: boolean;
+  sleeve_length: SleeveLength | null;
+  apparent_weight: ApparentWeight | null;
+  warmth: WarmthLevel | null;
   occasions: string[];
   wear_notes: string;
   layering_role: LayeringRole;
 };
+
+/** `null` means "we could not tell", which is a valid stored value. Anything
+ *  outside the list is a bug in the caller, not a shrug — so it errors. */
+function optionalAttribute<T extends string>(
+  value: string | null,
+  allowed: readonly T[],
+): T | null | undefined {
+  if (value === null) return null;
+  return (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
+}
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -46,11 +67,23 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
   if (!LAYERING_ROLES.includes(input.layering_role))
     return { ok: false, error: "Invalid layering role." };
 
-  const min = Math.round(input.min_temp_f);
-  const max = Math.round(input.max_temp_f);
-  if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) {
-    return { ok: false, error: "Temperature range is invalid." };
+  // Deduped here rather than in the database: `seasons <@ array[...]` accepts
+  // {summer,summer}, and catching that in a CHECK would need a subquery, which
+  // CHECK constraints forbid.
+  const seasons = [...new Set(input.seasons)].filter(isSeason);
+  if (seasons.length === 0) return { ok: false, error: "Pick at least one season." };
+
+  const sleeveLength = optionalAttribute(input.sleeve_length, SLEEVE_LENGTHS);
+  const apparentWeight = optionalAttribute(input.apparent_weight, APPARENT_WEIGHTS);
+  const warmth = optionalAttribute(input.warmth, WARMTH_LEVELS);
+  if (sleeveLength === undefined || apparentWeight === undefined || warmth === undefined) {
+    return { ok: false, error: "Invalid garment attribute." };
   }
+
+  const rainReady = Boolean(input.rain_ready);
+  // Derived, never sent by the client. This is the single point that keeps
+  // seasons and the temperature range from drifting apart again.
+  const { min, max } = seasonsToTempRange(seasons);
 
   const { error } = await supabase.from("wardrobe_items").insert({
     user_id: user.id,
@@ -61,9 +94,16 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
     primary_color: input.primary_color.trim().toLowerCase() || "unknown",
     secondary_colors: input.secondary_colors,
     formality: input.formality,
+    seasons,
+    rain_ready: rainReady,
+    sleeve_length: sleeveLength,
+    apparent_weight: apparentWeight,
+    warmth,
     min_temp_f: min,
     max_temp_f: max,
-    suitable_conditions: input.suitable_conditions,
+    // Kept coherent as a derived mirror so the legacy readers of this column
+    // — suitsRain's fallback, cached outfit snapshots — keep working.
+    suitable_conditions: conditionsFor(seasons, rainReady),
     occasions: input.occasions,
     wear_notes: input.wear_notes.trim() || null,
     layering_role: input.layering_role,

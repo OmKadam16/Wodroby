@@ -28,9 +28,16 @@ credentials.json
 service-account*.json
 
 # ---------------------------------------------------------------------------
-# Supabase — schema, migrations and the local CLI state.
+# Supabase — local CLI state and scratch SQL.
+#
+# Migrations are the exception and are tracked: they are the schema's only
+# source of truth, they have to be applied in order, and a checkout without
+# them cannot rebuild the database. They contain DDL and policies only — no
+# keys, no connection strings, no data. Secrets live in the env files above,
+# which are ignored wholesale.
 # ---------------------------------------------------------------------------
-/supabase
+/supabase/*
+!/supabase/migrations/
 .supabase/
 .branches/
 .temp/

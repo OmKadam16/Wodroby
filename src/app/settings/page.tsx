@@ -34,7 +34,9 @@ export default async function SettingsPage() {
           <div>
             <h2 className="text-base font-semibold">How it works</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              You tag each piece. Outfits are built from the weather — no AI.
+              Your photos are read on your device to suggest tags — they are
+              never uploaded for analysis. Outfits are then built from the
+              weather, by rules rather than a model.
             </p>
           </div>
         </section>

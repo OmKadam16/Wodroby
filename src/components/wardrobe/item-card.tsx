@@ -3,11 +3,11 @@
 import { useState, useTransition } from "react";
 import { GarmentImage } from "@/components/garment-image";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2 } from "lucide-react";
+import { Droplets, Loader2, Trash2 } from "lucide-react";
 import { deleteItem } from "@/app/wardrobe/actions";
 import type { WardrobeItemView } from "@/lib/storage";
 import { CATEGORY_LABELS } from "@/types/wardrobe";
-import { seasonFromRange } from "@/lib/outfit-engine";
+import { itemSeasons, seasonSummary } from "@/lib/seasons";
 
 export function ItemCard({ item }: { item: WardrobeItemView }) {
   const router = useRouter();
@@ -53,9 +53,14 @@ export function ItemCard({ item }: { item: WardrobeItemView }) {
       <p className="mt-2 truncate text-[13px] leading-tight">
         {item.item_name}
       </p>
-      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-        {CATEGORY_LABELS[item.category]} ·{" "}
-        {seasonFromRange(item.min_temp_f, item.max_temp_f)}
+      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+        <span className="truncate">
+          {CATEGORY_LABELS[item.category]} · {seasonSummary(itemSeasons(item))}
+        </span>
+        {/* An icon rather than another word — the line is already tight. */}
+        {item.rain_ready && (
+          <Droplets className="size-3 shrink-0 text-rainy" aria-label="Rain-ready" />
+        )}
       </p>
 
       {error && (
