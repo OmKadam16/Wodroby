@@ -13,7 +13,9 @@ const isDev = process.env.NODE_ENV === "development";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  // 'wasm-unsafe-eval' lets the browser compile the ONNX Runtime WASM
+  // module. It permits WebAssembly only — not eval() of JavaScript.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   // Signed storage links and the local object URL used for the upload preview.
   "img-src 'self' data: blob: https://*.supabase.co",
@@ -21,7 +23,9 @@ const csp = [
   // Supabase auth, database and storage. OpenAI is called from the server only.
   // Open-Meteo is called straight from the browser so each visitor spends
   // their own rate-limit quota rather than the server's shared egress IP.
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com${isDev ? " ws://localhost:*" : ""}`,
+  // huggingface.co serves the BiRefNet weights and redirects to its
+  // *.hf.co CDN; the model is fetched once and cached locally.
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com https://huggingface.co https://*.hf.co${isDev ? " ws://localhost:*" : ""}`,
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",

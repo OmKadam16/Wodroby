@@ -211,7 +211,7 @@ export function OutfitGenerator() {
       {/* Weather header                                                   */}
       {/* ---------------------------------------------------------------- */}
       <div
-        className="rounded-2xl border border-border p-[18px]"
+        className="rounded-2xl border border-border bg-card p-[18px] text-foreground"
         style={{
           background: `color-mix(in oklab, ${tone} 12%, var(--surface))`,
         }}

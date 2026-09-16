@@ -13,6 +13,12 @@ import {
 
 export type SaveItemInput = {
   image_url: string;
+  /**
+   * The untouched photo, kept alongside the background-removed card so the
+   * cut-out can be redone or reverted later without asking for the garment
+   * again. Null when background removal did not run.
+   */
+  original_image_url?: string | null;
   item_name: string;
   category: Category;
   sub_category: string;
@@ -55,6 +61,7 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
   const { error } = await supabase.from("wardrobe_items").insert({
     user_id: user.id,
     image_url: input.image_url,
+    original_image_url: input.original_image_url ?? null,
     item_name: input.item_name.trim(),
     category: input.category,
     sub_category: input.sub_category.trim() || input.category,
