@@ -70,7 +70,6 @@ next-env.d.ts
 /coverage
 .vercel
 .netlify
-.wrangler/
 .turbo/
 .eslintcache
 
@@ -93,8 +92,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# Cloudflare / OpenNext build output
-.open-next/
 
 # ---------------------------------------------------------------------------
 # Claude Design source canvases — self-unpacking bundles, ~500KB each, with

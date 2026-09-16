@@ -19,8 +19,8 @@ function required(name: string, value: string | undefined): string {
     throw new Error(
       `Missing ${name}. This is a build-time variable, so it must be set ` +
         `before the app is built, not only on the running server. ` +
-        `Locally: add it to .env.local. On Cloudflare: Settings -> Builds -> ` +
-        `build variables, then trigger a new build. Copy the value from ` +
+        `Locally: add it to .env.local. On Render: the service's ` +
+        `Environment tab, then trigger a new deploy. Copy the value from ` +
         `Supabase -> Project Settings -> API.`,
     );
   }

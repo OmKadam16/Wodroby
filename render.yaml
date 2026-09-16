@@ -35,7 +35,7 @@ services:
       # `sync: false` means: never store the value in this file, prompt for it
       # in the dashboard instead. Both are inlined into the bundle at BUILD
       # time, and Render exposes env vars during the build, so setting them
-      # here is enough — no separate build-variable step as on Cloudflare.
+      # here is enough.
       #
       # Copy from Supabase -> Project Settings -> API.
       # Never add SUPABASE_SERVICE_ROLE_KEY; it bypasses RLS and this app
