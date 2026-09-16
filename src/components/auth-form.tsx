@@ -8,15 +8,26 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/wardrobe";
-  return raw;
-}
+import { safeNext } from "@/lib/safe-next";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
+
+  /*
+   * Where a brand-new account goes: one screen to pick a theme, then on to
+   * wherever they were headed. Only the two paths below that actually create
+   * an account use this. Signing in — including the fallback further down,
+   * where the email turns out to be registered already — goes straight to
+   * `next`, because that person chose a theme when they signed up.
+   *
+   * Every destination here is reached with a full page load rather than a
+   * client navigation, as the sign-in paths already were. The session cookie
+   * has just been written, and the server components that read it — the nav,
+   * and the pages themselves — have to render against the signed-in state,
+   * not the signed-out tree this component is currently part of.
+   */
+  const afterSignup = `/welcome?next=${encodeURIComponent(next)}`;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -69,7 +80,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             return;
           }
         } else if (data.session) {
-          window.location.assign(next);
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- see afterSignup above
+          window.location.assign(afterSignup);
           return;
         } else if (data.user) {
           const { data: signInData, error: signInError } =
@@ -78,7 +90,8 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               password,
             });
           if (!signInError && signInData.session) {
-            window.location.assign(next);
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- see afterSignup above
+            window.location.assign(afterSignup);
             return;
           }
           setNotice(

@@ -84,14 +84,23 @@ function Preview({ swatch, split }: { swatch: Swatch; split?: Swatch }) {
   );
 }
 
-export function ThemeToggle() {
+/**
+ * `columns` overrides the track widths. The default spreads to five across on
+ * a wide viewport, which suits the full-width settings card — but the breakpoint
+ * reads the viewport, not the container, so a narrow column on a wide screen
+ * would still go to five and clip "Hello Kitty".
+ */
+export function ThemeToggle({ columns }: { columns?: string } = {}) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => "system" as Theme);
 
   return (
     <div
       role="radiogroup"
       aria-label="Theme"
-      className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5"
+      className={cn(
+        "grid gap-2.5",
+        columns ?? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+      )}
     >
       {OPTIONS.map(({ value, label, swatch, split }) => {
         const active = theme === value;

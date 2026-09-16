@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { Nav } from "@/components/nav";
+import { NavGate } from "@/components/nav-gate";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -53,7 +54,9 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
-        <Nav />
+        <NavGate>
+          <Nav />
+        </NavGate>
         {/* Clears the fixed bottom tab bar on mobile. */}
         <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
