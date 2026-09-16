@@ -9,6 +9,7 @@ const DESCRIPTION: Record<Theme, string> = {
   light: "Always light.",
   dark: "Always dark.",
   kitty: "Hello Kitty pastels.",
+  kuromi: "Kuromi — dark and purple.",
   system: "Following your device.",
 };
 

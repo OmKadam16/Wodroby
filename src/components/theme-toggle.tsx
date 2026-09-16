@@ -28,6 +28,11 @@ const OPTIONS: { value: Theme; label: string; swatch: Swatch; split?: Swatch }[]
       swatch: { canvas: "#ffffff", card: "#f5b8d0", accent: "#ffc72c" },
     },
     {
+      value: "kuromi",
+      label: "Kuromi",
+      swatch: { canvas: "#514283", card: "#e1ddf4", accent: "#cac5ed" },
+    },
+    {
       value: "system",
       label: "System",
       swatch: { canvas: "#fbf8f3", card: "#ffffff", accent: "#c0512c" },
@@ -86,7 +91,7 @@ export function ThemeToggle() {
     <div
       role="radiogroup"
       aria-label="Theme"
-      className="grid grid-cols-2 gap-2.5 sm:grid-cols-4"
+      className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5"
     >
       {OPTIONS.map(({ value, label, swatch, split }) => {
         const active = theme === value;

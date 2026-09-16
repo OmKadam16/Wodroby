@@ -127,6 +127,84 @@
    and controls. Text stays black throughout, so every pastel is used as a
    ground rather than as type.
    --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   Kuromi — the dark counterpart to the Hello Kitty theme.
+
+   Deep purple page, palest lavender cards, medium lavender buttons. Because
+   the page and the cards sit at opposite ends of the lightness scale, no
+   single text colour serves both: white clears 8.6:1 on the purple, black
+   clears 15.9:1 on the cards, and each fails badly on the other. So the text
+   tokens are re-scoped per surface in the block below this one.
+   --------------------------------------------------------------------------- */
+:root[data-theme="kuromi"] {
+  color-scheme: dark;
+
+  --canvas: #514283;   /* darkest — the page */
+  --surface: #e1ddf4;  /* lightest — cards */
+  --sunken: #d6d1f1;   /* wells and tiles, a shade under the cards */
+  --border: #6b5da0;   /* reads against the purple page */
+
+  /* On the page: light type. */
+  --ink: #f3f1fb;
+  --ink-muted: #c3bce4;
+
+  --clay: #cac5ed;     /* medium — buttons and active chips */
+  --clay-hover: #b6afe4;
+  --clay-tint: #3b3163;
+  --clay-ink: #cac5ed; /* small marks on the dark page stay light */
+  --ring: #cac5ed;
+
+  --olive: #d9a8c8;
+  --olive-tint: #3d2f52;
+
+  --inset: rgb(0 0 0 / 0.14);
+  --warm: rgb(202 197 237 / 0.06);
+
+  --primary-foreground: #000000;   /* black on the lavender buttons */
+  --secondary-foreground: #f3f1fb;
+  --destructive: #a83a5b;
+  --destructive-foreground: #ffffff;
+
+  --sunny: #e0a43b;
+  --cloudy: #8e9aa6;
+  --rainy: #7fa6c9;
+  --snowy: #b6d8e8;
+  --hot: #ee9e86;
+  --cold: #9fb4d6;
+}
+
+/* Light surfaces inside the Kuromi theme flip the type back to dark.
+   `[class~=]` matches a whole class token, so `hover:bg-accent` is NOT caught
+   — those elements are transparent until hovered and must keep page-coloured
+   text. Redefining the tokens here works because `@theme inline` compiles
+   utilities to `var(--foreground)` directly, so descendants re-resolve them. */
+:root[data-theme="kuromi"] [class~="bg-card"],
+:root[data-theme="kuromi"] [class~="bg-muted"],
+:root[data-theme="kuromi"] [class~="bg-muted/60"],
+:root[data-theme="kuromi"] [class~="bg-muted/40"],
+:root[data-theme="kuromi"] [class~="bg-sunken"],
+:root[data-theme="kuromi"] [class~="bg-accent"],
+:root[data-theme="kuromi"] [class~="bg-surface/90"] {
+  --ink: #191430;
+  --foreground: #191430;
+  --card-foreground: #191430;
+  --muted-foreground: #4a4270;
+  --ink-muted: #4a4270;
+  --border: #b7afdf;
+  --clay-ink: #4a3d8f;
+  --ring: #4a3d8f;
+  --olive: #9d3f6f;
+  --olive-tint: #f6e4ee;
+  --secondary-foreground: #191430;
+  --sunny: #a8761a;
+  --cloudy: #5c6b78;
+  --rainy: #3f5f7f;
+  --snowy: #4f7f96;
+  --hot: #b9552f;
+  --cold: #47618c;
+  color: var(--foreground);
+}
+
 :root[data-theme="kitty"] {
   color-scheme: light;
 

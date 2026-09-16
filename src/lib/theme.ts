@@ -1,4 +1,4 @@
-export const THEMES = ["light", "dark", "kitty", "system"] as const;
+export const THEMES = ["light", "dark", "kitty", "kuromi", "system"] as const;
 export type Theme = (typeof THEMES)[number];
 
 export const THEME_KEY = "wordroby_theme";
