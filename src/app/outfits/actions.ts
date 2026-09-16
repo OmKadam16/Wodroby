@@ -150,9 +150,14 @@ export async function getSavedOutfits(): Promise<{
   if (error) return { ok: false, error: error.message };
   if (!data || data.length === 0) return { ok: true, outfits: [] };
   const itemIds = [...new Set(data.flatMap((r) => r.item_ids))];
+  // `item_ids` came off a row this client wrote, so the ids in it are only as
+  // trustworthy as whatever posted them. Row-level security already refuses
+  // another user's garment; scoping the query says so out loud rather than
+  // leaving it to a policy two layers away.
   const { data: items } = await supabase
     .from("wardrobe_items")
     .select("*")
+    .eq("user_id", user.id)
     .in("id", itemIds);
   const signed = items ? await withSignedUrls(supabase, items as WardrobeItem[]) : [];
   const itemById = new Map(signed.map((s) => [s.id, s]));

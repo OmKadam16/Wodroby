@@ -4,8 +4,9 @@ const isDev = process.env.NODE_ENV === "development";
 
 /**
  * A Content Security Policy limits what a script injected into a page could
- * do. Combined with the httpOnly key cookie, an XSS bug can neither read the
- * OpenAI key nor ship data to an attacker's server.
+ * do. `connect-src` is the part that matters most here: even with script
+ * execution, there is nowhere to send a wardrobe to — the allowed origins are
+ * Supabase, the weather API and the two hosts that serve the model.
  *
  * `unsafe-inline` on scripts is what Next's bootstrap needs without a nonce;
  * `unsafe-eval` is only tolerated in development, where React Fast Refresh
@@ -29,7 +30,7 @@ const csp = [
   // Signed storage links and the local object URL used for the upload preview.
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
-  // Supabase auth, database and storage. OpenAI is called from the server only.
+  // Supabase auth, database and storage.
   // Open-Meteo is called straight from the browser so each visitor spends
   // their own rate-limit quota rather than the server's shared egress IP.
   //

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { conditionsFor, seasonsToTempRange } from "@/lib/seasons";
+import { BUCKET, storagePath } from "@/lib/storage";
 import {
   APPARENT_WEIGHTS,
   CATEGORIES,
@@ -116,6 +117,21 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
   return { ok: true };
 }
 
+/**
+ * Removes a garment: the photo first, then the row.
+ *
+ * Deleting only the row left the photograph in the bucket forever. Nobody
+ * else could read it — storage policies scope every object to the folder
+ * named after its owner — but "delete" has one meaning to the person clicking
+ * it, and a picture of their clothes outliving the item they deleted is not
+ * it.
+ *
+ * The photo goes first on purpose. If storage refuses, the row survives and
+ * the item is still listed, so the delete can be retried; the other order
+ * would report success and quietly leave the file behind, which is the bug
+ * being fixed. `original_image_url` is included because the uncompressed
+ * upload is a second object whenever one was kept.
+ */
 export async function deleteItem(id: string): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -123,6 +139,35 @@ export async function deleteItem(id: string): Promise<ActionResult> {
   } = await supabase.auth.getUser();
 
   if (!user) return { ok: false, error: "You must be signed in." };
+
+  const { data: item, error: readError } = await supabase
+    .from("wardrobe_items")
+    .select("image_url, original_image_url")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (readError) return { ok: false, error: readError.message };
+  // Already gone. Nothing to undo and nothing to report.
+  if (!item) return { ok: true };
+
+  const paths = [...new Set(
+    [item.image_url, item.original_image_url]
+      .filter((v): v is string => typeof v === "string" && v.length > 0)
+      .map(storagePath),
+  )];
+
+  if (paths.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from(BUCKET)
+      .remove(paths);
+    if (storageError) {
+      return {
+        ok: false,
+        error: `Could not delete the photo, so the item was kept: ${storageError.message}`,
+      };
+    }
+  }
 
   const { error } = await supabase
     .from("wardrobe_items")
