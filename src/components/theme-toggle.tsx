@@ -25,7 +25,7 @@ const OPTIONS: { value: Theme; label: string; swatch: Swatch; split?: Swatch }[]
     {
       value: "kitty",
       label: "Hello Kitty",
-      swatch: { canvas: "#faf3b4", card: "#e6a8c6", accent: "#c9b5e3" },
+      swatch: { canvas: "#ffffff", card: "#f5b8d0", accent: "#ffc72c" },
     },
     {
       value: "system",
