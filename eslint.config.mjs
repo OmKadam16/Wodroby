@@ -15,8 +15,6 @@ const eslintConfig = defineConfig([
     // Generated Cloudflare Worker bundle — megabytes of transpiled output
     // that ESLint would otherwise try (and run out of memory) to parse.
     ".open-next/**",
-    // ONNX Runtime binaries copied in by scripts/copy-ort-assets.mjs.
-    "public/ort/**",
   ]),
 ]);
 

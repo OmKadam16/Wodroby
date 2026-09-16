@@ -5,13 +5,6 @@ import { useRouter } from "next/navigation";
 import { Camera, ImageUp, Loader2, Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toCompressedFile } from "@/lib/image";
-import {
-  isSupported as bgSupported,
-  isModelCached as bgCached,
-  removeClothingBackground,
-  MODEL_BYTES,
-  type Progress as BgProgress,
-} from "@/lib/background-removal";
 import { BUCKET } from "@/lib/storage";
 import { saveItem } from "@/app/wardrobe/actions";
 import {
@@ -49,18 +42,10 @@ const SEASONS: {
 ];
 
 type PendingFile = { id: string; file: File; preview_url: string };
-/** Where a draft is in the background-removal pipeline. */
-type BgState = "idle" | "running" | "done" | "failed" | "skipped";
-
 type Draft = {
   id: string;
   file: File;
   preview_url: string;
-  /** The garment on a white card. Null until it succeeds, or if it is skipped. */
-  cut_file: File | null;
-  cut_url: string | null;
-  bg: BgState;
-  bg_error: string | null;
   item_name: string;
   category: Category;
   sub_category: string;
@@ -68,8 +53,6 @@ type Draft = {
 };
 
 const LAST_KEY = "wardroby_last_add";
-/** Remembers that the user accepted the one-off model download. */
-const BG_OPT_IN = "wardroby_bg_optin";
 
 function loadLast(): { category: Category; sub: string; season: SeasonId } | null {
   try {
@@ -98,10 +81,6 @@ function makeDraft(p: PendingFile, fallback?: { category: Category; sub: string;
     category: cat,
     sub_category: sub,
     season: fallback?.season ?? null,
-    cut_file: null,
-    cut_url: null,
-    bg: "idle",
-    bg_error: null,
   };
 }
 
@@ -125,80 +104,6 @@ export function AddItemDialog() {
   const [error, setError] = useState<string | null>(null);
   const [savingIndex, setSavingIndex] = useState(0);
   const [last, setLast] = useState<{ category: Category; sub: string; season: SeasonId } | null>(null);
-
-  /* --- background removal ------------------------------------------------
-     Runs entirely on-device with BiRefNet-Lite (see lib/background-removal).
-     The model is a one-off ~123 MB download, so it is opt-in the first time
-     and remembered afterwards; without WebGPU the whole feature is hidden and
-     photos are stored exactly as taken. */
-  const [bgOk, setBgOk] = useState(false);
-  const [bgReady, setBgReady] = useState(false);
-  const [bgOn, setBgOn] = useState(false);
-  const [bgProgress, setBgProgress] = useState<BgProgress | null>(null);
-
-  useEffect(() => {
-    if (!bgSupported()) return;
-    setBgOk(true);
-    bgCached().then((cached) => {
-      setBgReady(cached);
-      // Once the weights are on the device there is no cost to leaving it on.
-      if (cached) setBgOn(true);
-      else {
-        try {
-          setBgOn(localStorage.getItem(BG_OPT_IN) === "1");
-        } catch {
-          /* storage blocked — stay off until the user asks */
-        }
-      }
-    });
-  }, []);
-
-  /** Cut one draft out and put it on a white card. */
-  const processDraft = useCallback(async (id: string, source: File) => {
-    setDrafts((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, bg: "running", bg_error: null } : d)),
-    );
-    try {
-      const { card } = await removeClothingBackground(source, {
-        onProgress: setBgProgress,
-      });
-      const cut = new File([card], "cutout.webp", { type: card.type });
-      const url = URL.createObjectURL(cut);
-      setBgReady(true);
-      setDrafts((prev) =>
-        prev.map((d) =>
-          d.id === id
-            ? { ...d, cut_file: cut, cut_url: url, bg: "done", bg_error: null }
-            : d,
-        ),
-      );
-    } catch (err) {
-      setDrafts((prev) =>
-        prev.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                bg: "failed",
-                bg_error:
-                  err instanceof Error ? err.message : "Background removal failed.",
-              }
-            : d,
-        ),
-      );
-    } finally {
-      setBgProgress(null);
-    }
-  }, []);
-
-  /* One at a time: each run holds a 1024x1024 tensor on the GPU, and running
-     a batch in parallel is a reliable way to exhaust device memory. */
-  useEffect(() => {
-    if (stage !== "tag" || !bgOn || !bgOk) return;
-    if (drafts.some((d) => d.bg === "running")) return;
-    const next = drafts.find((d) => d.bg === "idle");
-    if (next) void processDraft(next.id, next.file);
-  }, [stage, bgOn, bgOk, drafts, processDraft]);
-
 
   useEffect(() => {
     if (open) {
@@ -273,33 +178,14 @@ export function AddItemDialog() {
         setSavingIndex(i);
         const d = drafts[i];
         const name = d.item_name.trim() || `${d.sub_category} #${i + 1}`;
-        // The white card is what the wardrobe shows. Its pixels are the
-        // user's own photo with the background masked out — nothing about the
-        // garment is regenerated — so it is compressed and stored like any
-        // other image.
-        const primary = d.cut_file ?? d.file;
-        const compressed = await toCompressedFile(primary);
+        const compressed = await toCompressedFile(d.file);
         const ext = compressed.type === "image/avif" ? "avif" : compressed.type === "image/webp" ? "webp" : "jpg";
-        const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        const path = `${user.id}/${stamp}.${ext}`;
+        const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
         const upload = await supabase.storage.from(BUCKET).upload(path, compressed, { contentType: compressed.type, upsert: false });
         if (upload.error) throw new Error(upload.error.message);
-
-        // Keep the untouched photo too, so a cut-out can be redone or
-        // reverted later without asking for the garment again.
-        let originalPath: string | null = null;
-        if (d.cut_file) {
-          const originalFile = await toCompressedFile(d.file);
-          const oExt = originalFile.type === "image/avif" ? "avif" : originalFile.type === "image/webp" ? "webp" : "jpg";
-          const oPath = `${user.id}/${stamp}-original.${oExt}`;
-          const oUpload = await supabase.storage.from(BUCKET).upload(oPath, originalFile, { contentType: originalFile.type, upsert: false });
-          // A failed original is not worth losing the item over.
-          if (!oUpload.error) originalPath = oPath;
-        }
         const weather = seasonToWeather(d.season);
         const result = await saveItem({
           image_url: path,
-          original_image_url: originalPath,
           item_name: name,
           category: d.category,
           sub_category: d.sub_category || d.category,
@@ -392,80 +278,17 @@ export function AddItemDialog() {
                 <span className="ml-auto text-[11px] text-muted-foreground">1 tap fills all</span>
               </div>
 
-              {bgOk && !bgOn && (
-                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium">Put these on a clean white card?</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Cuts the background out on your device — nothing is uploaded
-                      for it. Needs a one-off {Math.round(MODEL_BYTES / 1e6)} MB download.
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setBgOn(true);
-                      try { localStorage.setItem(BG_OPT_IN, "1"); } catch {}
-                    }}
-                  >
-                    {bgReady ? "Turn on" : "Download & use"}
-                  </Button>
-                </div>
-              )}
-
               {drafts.map((d) => (
                 <div key={d.id} className="flex flex-col gap-3 rounded-xl border p-3 sm:p-4">
                   <div className="flex gap-3">
                     <div className="relative size-20 shrink-0 overflow-hidden rounded-lg border bg-muted sm:size-24">
-                      {/* The cut-out replaces the preview as soon as it lands,
-                          so the row shows what will actually be saved. */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={d.cut_url ?? d.preview_url}
-                        alt=""
-                        className={cn(
-                          "size-full",
-                          d.cut_url ? "bg-white object-contain" : "object-cover",
-                        )}
-                      />
-                      {d.bg === "running" && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[1px]">
-                          <Loader2 className="size-5 animate-spin" />
-                        </div>
-                      )}
+                      <img src={d.preview_url} alt="" className="size-full object-cover" />
                     </div>
                     <div className="flex flex-1 flex-col gap-1.5">
                       <Label htmlFor={`name-${d.id}`} className="text-xs">Name <span className="font-normal text-muted-foreground">(optional)</span></Label>
                       <Input id={`name-${d.id}`} value={d.item_name} placeholder={`${d.sub_category} #`} onChange={(e) => patchDraft(d.id, { item_name: e.target.value })} className="h-9" />
-                      {bgOk && bgOn && (
-                        <p className="text-[11px] text-muted-foreground">
-                          {d.bg === "running" && (
-                            bgProgress?.stage === "downloading"
-                              ? `Getting the model… ${Math.round((bgProgress.ratio ?? 0) * 100)}%`
-                              : "Removing background…"
-                          )}
-                          {d.bg === "done" && (
-                            <span className="text-olive">Looking good!</span>
-                          )}
-                          {d.bg === "failed" && (
-                            <span className="text-destructive">{d.bg_error}</span>
-                          )}
-                          {d.bg === "skipped" && "Using the original photo."}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap gap-1">
-                        {bgOk && bgOn && (d.bg === "done" || d.bg === "failed" || d.bg === "skipped") && (
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => processDraft(d.id, d.file)}>
-                            {d.bg === "failed" ? "Try again" : "Redo cut-out"}
-                          </Button>
-                        )}
-                        {bgOk && bgOn && d.bg === "done" && (
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => patchDraft(d.id, { bg: "skipped", cut_file: null, cut_url: null })}>
-                            Use original
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => removeDraft(d.id)}><Trash2 className="size-3.5" />Remove</Button>
-                      </div>
+                      <Button variant="ghost" size="sm" className="h-7 self-start px-2 text-xs" onClick={() => removeDraft(d.id)}><Trash2 className="size-3.5" />Remove</Button>
                     </div>
                   </div>
 

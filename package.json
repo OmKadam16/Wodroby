@@ -10,10 +10,7 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare build && wrangler dev",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "typecheck": "tsc --noEmit",
-    "copy:ort": "node scripts/copy-ort-assets.mjs",
-    "prebuild": "node scripts/copy-ort-assets.mjs",
-    "predev": "node scripts/copy-ort-assets.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -27,7 +24,6 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.43.0",
     "next": "16.3.4",
-    "onnxruntime-web": "^1.27.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "^3.6.0"

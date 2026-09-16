@@ -95,9 +95,3 @@ yarn-error.log*
 # they encode lives in src/app/globals.css and the components.
 # ---------------------------------------------------------------------------
 /design/
-
-# ---------------------------------------------------------------------------
-# ONNX Runtime Web binaries, copied from node_modules by
-# scripts/copy-ort-assets.mjs before each build. Generated, ~26 MB.
-# ---------------------------------------------------------------------------
-/public/ort/
