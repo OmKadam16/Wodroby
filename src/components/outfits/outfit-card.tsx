@@ -29,14 +29,22 @@ const MATCH_ICON: Record<MatchLevel, typeof Check> = {
   alternative: AlertTriangle,
 };
 
-/* Column count follows the piece count so a three-piece look never leaves an
-   empty cell: 2 across for a dress + shoes, 3 for top/bottom/shoes, 2x2 once
-   outerwear joins. */
-const COLUMNS: Record<number, string> = {
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-  4: "grid-cols-2",
-};
+/**
+ * A look is always laid out as a filled rectangle: four cells up to four
+ * pieces, six beyond that, with blanks making up the difference.
+ *
+ * The count used to pick the column class from a lookup table, which had no
+ * entry for five — so a five-piece look got `grid` with no column template at
+ * all and collapsed into one tall column running down the card.
+ *
+ * Generalised past six for safety, though the engine tops out at five
+ * (top, bottom, layer, shoes, accessory).
+ */
+function gridFor(count: number): { columns: number; cells: number; className: string } {
+  const columns = count <= 4 ? 2 : 3;
+  const cells = Math.max(columns * 2, Math.ceil(count / columns) * columns);
+  return { columns, cells, className: columns === 2 ? "grid-cols-2" : "grid-cols-3" };
+}
 
 export function OutfitCard({
   outfit,
@@ -55,6 +63,7 @@ export function OutfitCard({
   const [pending, startTransition] = useTransition();
   const [unit] = useTempUnit();
   const MatchIcon = MATCH_ICON[outfit.matchLevel];
+  const layout = gridFor(outfit.items.length);
 
   function handleSave() {
     if (!request) return;
@@ -101,14 +110,18 @@ export function OutfitCard({
         )}
       </div>
 
-      <div className={cn("grid gap-2 px-3.5", COLUMNS[outfit.items.length])}>
+      <div className={cn("grid gap-2 px-3.5", layout.className)}>
         {outfit.items.map((item) => (
           <div key={item.id}>
             <div className="garment-tile relative aspect-square overflow-hidden rounded-xl">
               <GarmentImage
                 src={item.display_url}
                 alt={item.item_name}
-                sizes="(max-width: 640px) 33vw, 160px"
+                sizes={
+                  layout.columns === 2
+                    ? "(max-width: 640px) 45vw, 200px"
+                    : "(max-width: 640px) 30vw, 140px"
+                }
               />
             </div>
             <p className="mt-2 truncate text-[13px] leading-tight">
@@ -117,6 +130,15 @@ export function OutfitCard({
             <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
               {CATEGORY_LABELS[item.category]}
             </p>
+          </div>
+        ))}
+
+        {/* Keeps the rectangle square. Dashed and quiet so it reads as room
+            left over rather than an image that failed to load. Hidden from
+            screen readers, which should hear the pieces and nothing else. */}
+        {Array.from({ length: layout.cells - outfit.items.length }, (_, i) => (
+          <div key={`empty-${i}`} aria-hidden="true">
+            <div className="aspect-square rounded-xl border border-dashed border-border opacity-60" />
           </div>
         ))}
       </div>

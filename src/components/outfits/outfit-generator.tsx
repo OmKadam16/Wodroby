@@ -9,13 +9,10 @@ import {
   MapPin,
   Sparkles,
 } from "lucide-react";
-import {
-  generateOutfitsAction,
-  getCachedOutfits,
-  getSavedOutfits,
-} from "@/app/outfits/actions";
-import type { Outfit, OutfitRequest } from "@/lib/outfit-engine";
-import { seasonFromTemp } from "@/lib/outfit-engine";
+import { generateOutfitsAction, getSavedOutfits } from "@/app/outfits/actions";
+import { OUTFIT_PAGE_SIZE, type Outfit, type OutfitRequest } from "@/lib/outfit-engine";
+import { seasonForToday } from "@/lib/seasons";
+import { SEASON_LABELS } from "@/types/wardrobe";
 import type { Weather, WeatherCondition } from "@/lib/weather";
 import { fetchWeatherDirect } from "@/lib/weather-client";
 import { OCCASIONS, occasionLabel, type Occasion } from "@/types/wardrobe";
@@ -69,6 +66,9 @@ export function OutfitGenerator() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const [outfits, setOutfits] = useState<Outfit[] | null>(null);
+  /** Every look the wardrobe allows — `outfits` holds the pages fetched so far. */
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -149,16 +149,6 @@ export function OutfitGenerator() {
   }, []);
 
   useEffect(() => {
-    getCachedOutfits({
-      current_temp_f: temp,
-      occasion,
-      is_rainy: isRainy,
-    }).then((cached) => {
-      if (cached && cached.length > 0) setOutfits(cached);
-    });
-  }, [temp, occasion, isRainy]);
-
-  useEffect(() => {
     if (weatherState === "loading") return;
     const t = setTimeout(() => {
       handleGenerate();
@@ -185,24 +175,54 @@ export function OutfitGenerator() {
       if (!result.ok) {
         setError(result.error);
         setOutfits(null);
+        setTotal(0);
         return;
       }
 
       setOutfits(result.outfits);
+      setTotal(result.total);
       setNotice(result.notice);
       setEmptyReason(result.emptyReason);
     });
   }
 
-  const season = seasonFromTemp(temp, isRainy);
-  const seasonLabel =
-    season === "summer"
-      ? "Summer"
-      : season === "winter"
-        ? "Winter"
-        : season === "rainy"
-          ? "Rainy"
-          : "All-season";
+  /**
+   * Fetches the next page and appends it.
+   *
+   * Deliberately outside `startTransition`: that transition drives the "finding
+   * looks" state for the whole grid, and reusing it here would blank the cards
+   * already on screen every time someone asked for more of them.
+   */
+  function handleLoadMore() {
+    if (loadingMore || !outfits) return;
+    setLoadingMore(true);
+    const offset = outfits.length;
+
+    generateOutfitsAction(
+      { current_temp_f: temp, occasion, is_rainy: isRainy },
+      offset,
+    )
+      .then((result) => {
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        // The controls may have moved on while this was in flight, which would
+        // start a fresh run from offset 0; appending a stale page then would
+        // mix two different requests together in one grid.
+        setOutfits((prev) =>
+          prev && prev.length === result.offset
+            ? [...prev, ...result.outfits]
+            : prev,
+        );
+        setTotal(result.total);
+      })
+      .finally(() => setLoadingMore(false));
+  }
+
+  // Display only. Rain is no longer part of the season vocabulary, so it is
+  // appended to the badge separately below rather than replacing the season.
+  const seasonLabel = SEASON_LABELS[seasonForToday(temp)];
   const tone = weather ? CONDITION_TONE[weather.condition] : "var(--cloudy)";
 
   return (
@@ -501,6 +521,35 @@ export function OutfitGenerator() {
                   }}
                 />
               ))}
+            </div>
+          )}
+
+          {outfits && outfits.length > 0 && (
+            <div className="flex flex-col items-center gap-2 pt-1">
+              <p className="text-[12px] text-muted-foreground">
+                {outfits.length < total
+                  ? `Showing ${outfits.length} of ${total} looks`
+                  : total === 1
+                    ? "1 look — that's everything your wardrobe makes"
+                    : `All ${total} looks your wardrobe makes`}
+              </p>
+              {outfits.length < total && (
+                <Button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  variant="outline"
+                  className="h-11 px-5"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Loading
+                    </>
+                  ) : (
+                    `Show ${Math.min(OUTFIT_PAGE_SIZE, total - outfits.length)} more`
+                  )}
+                </Button>
+              )}
             </div>
           )}
 

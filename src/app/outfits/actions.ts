@@ -5,6 +5,7 @@ import {
   explainEmptyResult,
   generateOutfits,
   missingSlots,
+  OUTFIT_PAGE_SIZE,
   type Outfit,
   type OutfitRequest,
 } from "@/lib/outfit-engine";
@@ -20,7 +21,11 @@ export type GenerateResult =
   | {
       ok: true;
       outfits: Outfit[];
-      /** How many came back with no compromises at all. */
+      /** Every look the wardrobe allows, not just the ones in this page. */
+      total: number;
+      /** Index this page starts at, echoed back so pages can't interleave. */
+      offset: number;
+      /** How many of the whole run came back with no compromises at all. */
       exactCount: number;
       /** Set when the results fall short of what was asked for. */
       notice: string | null;
@@ -35,6 +40,7 @@ export type GenerateResult =
  */
 export async function generateOutfitsAction(
   req: OutfitRequest,
+  offset = 0,
 ): Promise<GenerateResult> {
   const supabase = await createClient();
   const {
@@ -81,6 +87,8 @@ export async function generateOutfitsAction(
     return {
       ok: true,
       outfits: [],
+      total: 0,
+      offset: 0,
       exactCount: 0,
       notice: null,
       emptyReason: explainEmptyResult(
@@ -90,93 +98,38 @@ export async function generateOutfitsAction(
     };
   }
 
-  const validIds = new Set(items.map((i) => i.id));
-  const occasionKey = normalized.occasion ?? "";
+  /*
+   * Every look the wardrobe allows, in the order the engine chose.
+   *
+   * This used to merge with an outfit_cache row and cut the result to 24. The
+   * cache bought nothing: the engine is deterministic, so regenerating from
+   * the same wardrobe and request already returns the same looks in the same
+   * order. What it did buy was a cap far below what a wardrobe can produce,
+   * and a frozen JSON copy of every item that went stale the moment an item
+   * was edited — which is how a cap ended up showing as a Bottom after it was
+   * corrected to an accessory.
+   *
+   * The table stays for explicitly saved outfits, which are a different thing.
+   */
+  const start = Number.isFinite(offset) ? Math.max(0, Math.trunc(offset)) : 0;
+  const page = fresh.slice(start, start + OUTFIT_PAGE_SIZE);
 
-  let cachedOutfits: Outfit[] = [];
-  const { data: cachedRow } = await supabase
-    .from("outfit_cache")
-    .select("outfits")
-    .eq("user_id", user.id)
-    .eq("temp", temp)
-    .eq("occasion", occasionKey)
-    .eq("is_rainy", normalized.is_rainy)
-    .maybeSingle();
-
-  if (cachedRow?.outfits && Array.isArray(cachedRow.outfits)) {
-    cachedOutfits = (cachedRow.outfits as Outfit[]).filter((o) =>
-      o.items.every((it) => validIds.has(it.id)),
-    );
-  }
-
-  const cachedIds = new Set(cachedOutfits.map((o) => o.id));
-  const additions = fresh.filter((o) => !cachedIds.has(o.id));
-
-  let outfits: Outfit[];
-  if (cachedOutfits.length > 0) {
-    outfits = [...cachedOutfits, ...additions];
-    if (additions.length > 0) {
-      const merged = outfits.slice(0, 24);
-      await supabase.from("outfit_cache").upsert(
-        {
-          user_id: user.id,
-          temp,
-          occasion: occasionKey,
-          is_rainy: normalized.is_rainy,
-          outfits: merged,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,temp,occasion,is_rainy" },
-      );
-      outfits = merged;
-    }
-  } else {
-    outfits = fresh.slice(0, 24);
-    await supabase.from("outfit_cache").upsert(
-      {
-        user_id: user.id,
-        temp,
-        occasion: occasionKey,
-        is_rainy: normalized.is_rainy,
-        outfits,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,temp,occasion,is_rainy" },
-    );
-  }
-
-  const hydrated = await hydrateOutfitItemUrls(supabase, outfits);
-  const exactCount = hydrated.filter((o) => o.matchLevel === "exact").length;
+  // Counted over the whole run, not the page, so the notice below doesn't
+  // appear on page three just because page three happens to be all compromises.
+  const exactCount = fresh.filter((o) => o.matchLevel === "exact").length;
 
   return {
     ok: true,
-    outfits: hydrated,
+    outfits: page,
+    total: fresh.length,
+    offset: start,
     exactCount,
-    notice: exactCount > 0 ? null : buildNotice(items, hydrated, normalized),
+    // The items already carry links signed moments ago, so there is nothing to
+    // re-sign here; the notice only has to be built once, for the first page.
+    notice:
+      start === 0 && exactCount === 0 ? buildNotice(items, fresh, normalized) : null,
     emptyReason: null,
   };
-}
-
-async function hydrateOutfitItemUrls(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  outfits: Outfit[],
-): Promise<Outfit[]> {
-  const allItemIds = [...new Set(outfits.flatMap((o) => o.items.map((i) => i.id)))];
-  if (allItemIds.length === 0) return outfits;
-  const { data } = await supabase
-    .from("wardrobe_items")
-    .select("*")
-    .in("id", allItemIds);
-  if (!data) return outfits;
-  const signed = await withSignedUrls(supabase, data as WardrobeItem[]);
-  const urlById = new Map(signed.map((s) => [s.id, s.display_url]));
-  return outfits.map((o) => ({
-    ...o,
-    items: o.items.map((it) => ({
-      ...it,
-      display_url: urlById.get(it.id) ?? it.display_url,
-    })),
-  }));
 }
 
 export async function getSavedOutfits(): Promise<{
@@ -219,8 +172,7 @@ export async function getSavedOutfits(): Promise<{
       } as Outfit;
     })
     .filter(Boolean) as Outfit[];
-  const hydrated = await hydrateOutfitItemUrls(supabase, outfits);
-  return { ok: true, outfits: hydrated };
+  return { ok: true, outfits };
 }
 
 export async function toggleSaveOutfit(outfit: Outfit, req: OutfitRequest): Promise<{ ok: true; saved: boolean } | { ok: false; error: string }> {
@@ -258,26 +210,6 @@ export async function toggleSaveOutfit(outfit: Outfit, req: OutfitRequest): Prom
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true, saved: true };
-}
-
-export async function getCachedOutfits(req: OutfitRequest): Promise<Outfit[] | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
-    .from("outfit_cache")
-    .select("outfits")
-    .eq("user_id", user.id)
-    .eq("temp", Math.round(req.current_temp_f))
-    .eq("occasion", req.occasion ?? "")
-    .eq("is_rainy", Boolean(req.is_rainy))
-    .maybeSingle();
-  if (!data?.outfits || !Array.isArray(data.outfits)) return null;
-  const outfits = data.outfits as Outfit[];
-  const hydrated = await hydrateOutfitItemUrls(supabase, outfits);
-  return hydrated;
 }
 
 /** Explains, in one sentence, why nothing is a clean match. */

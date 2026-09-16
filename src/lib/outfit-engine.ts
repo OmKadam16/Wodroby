@@ -104,6 +104,10 @@ const NEUTRALS = new Set([
 ]);
 
 function suitsRain(item: WardrobeItem): boolean {
+  if (item.rain_ready) return true;
+  // Rows written before rain_ready existed carry it in the condition list, and
+  // so do item snapshots read back out of outfit_cache, where the field is
+  // simply absent. Both are permanent cases, so this fallback stays.
   return item.suitable_conditions.some((c) => {
     const v = c.toLowerCase();
     return v === "rainy" || v === "rain" || v === "wet";
@@ -210,7 +214,6 @@ function evaluate(
   }
 
   const hasOuterwear = items.some((i) => i.category === "outerwear");
-  const hasFootwear = items.some((i) => i.category === "footwear");
   if (req.current_temp_f < OUTERWEAR_EXPECTED_BELOW_F && !hasOuterwear) {
     penalty += 8;
     compromises.push(
@@ -218,10 +221,6 @@ function evaluate(
     );
   } else if (hasOuterwear) {
     reasons.push("Layered with outerwear");
-  }
-  if (!hasFootwear) {
-    penalty += 6;
-    compromises.push("No shoes — add a pair to complete the look");
   }
 
   // --- rain ---
@@ -265,31 +264,77 @@ function outfitId(items: WardrobeItem[]): string {
     .join("|");
 }
 
+/**
+ * How many looks travel to the browser at once.
+ *
+ * The engine builds every look the wardrobe allows — thousands for a real
+ * wardrobe — but each one carries a full copy of its four or five garments, so
+ * returning them all meant an 18 MB response for a 31-item wardrobe, to fill a
+ * screen that shows six cards. The page is served in slices instead.
+ *
+ * It lives here rather than beside the server action because a `"use server"`
+ * module may only export async functions, and the client needs this number to
+ * label its own button.
+ */
+export const OUTFIT_PAGE_SIZE = 60;
+
 export type GenerateOptions = {
-  /** Maximum outfits returned. */
+  /** Maximum outfits returned. Omit for every look the wardrobe allows. */
   limit?: number;
-  /** Cap on candidates considered per slot, which bounds the combinations. */
-  perSlotLimit?: number;
 };
 
 /**
- * The season label a garment was tagged with, recovered from the temperature
- * range the add-item flow stored for it (summer 68-105, winter 15-55,
- * rainy 45-75, all-season 30-90). Used for the caption under each tile.
+ * A ceiling on how many looks are built. Not a style judgement — arithmetic.
+ *
+ * The count is the product of every slot, so it explodes: 30 tops, 25 bottoms,
+ * 15 pairs of shoes, 10 layers and 20 accessories is over five million. Below
+ * this ceiling every possible look is built; above it, each slot is trimmed to
+ * its strongest candidates until the product fits.
  */
-export function seasonFromRange(minF: number, maxF: number): string {
-  if (minF >= 68) return "Summer";
-  if (maxF <= 55) return "Winter";
-  if (minF >= 45 && maxF <= 75) return "Rainy";
-  return "Any";
-}
+const MAX_COMBINATIONS = 4000;
 
-export function seasonFromTemp(temp: number, isRainy: boolean): string {
-  if (isRainy) return "rainy";
-  if (temp >= 68) return "summer";
-  if (temp <= 55) return "winter";
-  if (temp >= 30 && temp <= 90) return "all-season";
-  return "mid";
+/**
+ * Orders looks so the page reads as a wardrobe rather than as a ranking.
+ *
+ * Sorting by score alone lets a single garment monopolise the whole list. One
+ * bold colour among neutrals is worth a flat +4 to every look it appears in
+ * (see colorHarmony), so with an otherwise neutral wardrobe *every* top-scoring
+ * look contains that one piece — which reads as "why does it keep showing me
+ * the same shirt".
+ *
+ * Grouping by the anchor garment and taking the groups in turn puts each top's
+ * best look first, then each top's second best, and so on. Score still decides
+ * the order within a group and which group leads.
+ */
+function interleaveByAnchor(outfits: Outfit[]): Outfit[] {
+  const groups = new Map<string, Outfit[]>();
+  for (const outfit of outfits) {
+    const anchor = outfit.items.find(
+      (i) => i.category === "top" || i.category === "one_piece",
+    );
+    const key = anchor?.id ?? "__no_anchor";
+    const group = groups.get(key);
+    if (group) group.push(outfit);
+    else groups.set(key, [outfit]);
+  }
+
+  const byScore = (a: Outfit, b: Outfit) => b.score - a.score || a.id.localeCompare(b.id);
+  for (const group of groups.values()) group.sort(byScore);
+  const ordered = [...groups.values()].sort((a, b) => byScore(a[0], b[0]));
+
+  const out: Outfit[] = [];
+  for (let round = 0; out.length < outfits.length; round++) {
+    let added = 0;
+    for (const group of ordered) {
+      const outfit = group[round];
+      if (outfit) {
+        out.push(outfit);
+        added++;
+      }
+    }
+    if (added === 0) break;
+  }
+  return out;
 }
 
 export function generateOutfits(
@@ -297,9 +342,6 @@ export function generateOutfits(
   req: OutfitRequest,
   options: GenerateOptions = {},
 ): Outfit[] {
-  const limit = options.limit ?? 18;
-  const perSlot = options.perSlotLimit ?? 8;
-
   const pool = items
     .filter((item) => isWearable(item, req.current_temp_f))
     .map((item) => assess(item, req));
@@ -322,68 +364,121 @@ export function generateOutfits(
     return a.item.id.localeCompare(b.item.id);
   };
 
-  const bucket = (category: string) =>
-    pool
-      .filter((p) => p.item.category === category)
-      .sort(rank)
-      .slice(0, perSlot);
+  const ranked = (category: string) =>
+    pool.filter((p) => p.item.category === category).sort(rank);
 
-  const tops = bucket("top");
-  const bottoms = bucket("bottom");
-  const onePieces = bucket("one_piece");
-  const footwear = bucket("footwear");
-  const outerwear = bucket("outerwear");
-  const accessories = bucket("accessory");
+  const allTops = ranked("top");
+  const allBottoms = ranked("bottom");
+  const allOnePieces = ranked("one_piece");
+  const allFootwear = ranked("footwear");
+  const allOuterwear = ranked("outerwear");
+  const allAccessories = ranked("accessory");
 
-  const layers: (Assessment | null)[] =
-    outerwear.length > 0 ? [...outerwear, null] : [null];
-  const addOns: (Assessment | null)[] =
-    accessories.length > 0 ? [...accessories, null] : [null];
-  const shoes: (Assessment | null)[] =
-    footwear.length > 0 ? [...footwear, null] : [null];
+  // Anchors are the top+bottom pairs (and one-pieces) — the part of a look a
+  // person actually recognises. They are capped first and hardest, because
+  // every anchor must survive for the wardrobe to feel represented.
+  let anchorCap = Math.max(allTops.length, allBottoms.length, allOnePieces.length);
+  const anchorCount = (cap: number) =>
+    Math.min(allTops.length, cap) * Math.min(allBottoms.length, cap) +
+    Math.min(allOnePieces.length, cap);
+  while (anchorCap > 1 && anchorCount(anchorCap) > MAX_COMBINATIONS) anchorCap--;
 
-  const combos: Assessment[][] = [];
-  for (const shoe of shoes) {
-    for (const layer of layers) {
-      for (const acc of addOns) {
-        for (const top of tops) {
-          for (const bottom of bottoms) {
-            const base: Assessment[] = [top, bottom];
-            if (shoe) base.push(shoe);
-            const withLayer = layer ? [...base, layer] : base;
-            combos.push(acc ? [...withLayer, acc] : withLayer);
-          }
-        }
-        for (const piece of onePieces) {
-          const base: Assessment[] = [piece];
-          if (shoe) base.push(shoe);
-          const withLayer = layer ? [...base, layer] : base;
-          combos.push(acc ? [...withLayer, acc] : withLayer);
-        }
-        if (tops.length === 0 && bottoms.length === 0 && onePieces.length === 0 && (shoe || layer || acc)) {
-          const solo: Assessment[] = [];
-          if (shoe) solo.push(shoe);
-          if (layer) solo.push(layer);
-          if (acc) solo.push(acc);
-          if (solo.length > 0) combos.push(solo);
-        }
-      }
-    }
+  const tops = allTops.slice(0, anchorCap);
+  const bottoms = allBottoms.slice(0, anchorCap);
+  const onePieces = allOnePieces.slice(0, anchorCap);
+
+  // Shoes, layers and accessories are never trimmed. They multiply out fast,
+  // so instead of dropping options the best completions of each anchor are
+  // kept — which is why a big wardrobe still shows every top, just with fewer
+  // variations of the same look.
+  const footwear = allFootwear;
+  const outerwear = allOuterwear;
+  const accessories = allAccessories;
+
+  /*
+   * What counts as an outfit: something on the torso, something on the legs,
+   * and something on the feet. A top with a bottom covers the first two, and
+   * so does a one-piece. Jackets and accessories are additions to that, never
+   * a substitute for it.
+   *
+   * So an anchor is never partial, and shoes below are never optional — a
+   * shirt and trousers with nothing on your feet is not a look, it is a list.
+   */
+  const anchors: Assessment[][] = [];
+  for (const top of tops) {
+    for (const bottom of bottoms) anchors.push([top, bottom]);
   }
+  for (const piece of onePieces) anchors.push([piece]);
+
+  if (anchors.length === 0 || footwear.length === 0) return [];
+
+  /** How many variations of each anchor survive. */
+  const perAnchor = Math.max(1, Math.floor(MAX_COMBINATIONS / anchors.length));
+
+  /*
+   * Bound the work per anchor as well as the output.
+   *
+   * Building every completion and then discarding almost all of them is what
+   * made a large wardrobe take seconds: 15 pairs of shoes, 10 layers and 20
+   * accessories is 3,696 completions per anchor, nearly all thrown away. Keep
+   * a pool a few times larger than what survives, and rotate which options
+   * each anchor draws from so that across the whole list nothing in the
+   * wardrobe goes unworn.
+   */
+  // Sized to exactly what survives, not larger. A bigger pool would be cut back
+  // by score, and completions of the same anchor score so closely that the cut
+  // falls on the id tie-break — which deterministically favours the same few
+  // accessories and leaves others never worn.
+  const poolTarget = perAnchor;
+  const completions = (cap: number) =>
+    Math.min(footwear.length, cap) *
+    (Math.min(outerwear.length, cap) + 1) *
+    (Math.min(accessories.length, cap) + 1);
+  let optionalCap = Math.max(footwear.length, outerwear.length, accessories.length);
+  while (optionalCap > 1 && completions(optionalCap) > poolTarget) optionalCap--;
+
+  /** Optional slots: every option, plus the option of going without. */
+  const rotate = (list: Assessment[], offset: number): (Assessment | null)[] => {
+    if (list.length === 0) return [null];
+    const take = Math.min(list.length, optionalCap);
+    const window = Array.from({ length: take }, (_, i) => list[(offset + i) % list.length]);
+    return [...window, null];
+  };
+
+  /** Shoes are required, so this window has no "without" entry. */
+  const rotateRequired = (list: Assessment[], offset: number): Assessment[] => {
+    const take = Math.min(list.length, optionalCap);
+    return Array.from({ length: take }, (_, i) => list[(offset + i) % list.length]);
+  };
 
   const seen = new Set<string>();
   const outfits: Outfit[] = [];
+  const byScore = (a: Outfit, b: Outfit) => b.score - a.score || a.id.localeCompare(b.id);
 
-  for (const combo of combos) {
-    const picks = [...combo];
-    const id = outfitId(picks.map((p) => p.item));
-    if (seen.has(id)) continue;
-    seen.add(id);
-    outfits.push({ id, items: picks.map((p) => p.item), ...evaluate(picks, req) });
+  for (const [index, base] of anchors.entries()) {
+    const built: Outfit[] = [];
+    for (const shoe of rotateRequired(footwear, index)) {
+      for (const layer of rotate(outerwear, index)) {
+        for (const acc of rotate(accessories, index)) {
+          const picks = [...base];
+          if (shoe) picks.push(shoe);
+          if (layer) picks.push(layer);
+          if (acc) picks.push(acc);
+          if (picks.length === 0) continue;
+
+          const id = outfitId(picks.map((p) => p.item));
+          if (seen.has(id)) continue;
+          seen.add(id);
+          built.push({ id, items: picks.map((p) => p.item), ...evaluate(picks, req) });
+        }
+      }
+    }
+    built.sort(byScore);
+    outfits.push(...built.slice(0, perAnchor));
   }
 
-  outfits.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
-  return outfits.slice(0, limit);
+  const ordered = interleaveByAnchor(outfits);
+  return options.limit === undefined ? ordered : ordered.slice(0, options.limit);
 }
 
 /**
@@ -397,12 +492,13 @@ export function missingSlots(items: WardrobeItem[], temp?: number): string[] {
       : items;
   const has = (c: string) => pool.some((i) => i.category === c);
 
+  // An outfit needs the torso, the legs and the feet covered, so each of those
+  // is reported separately — telling someone they are "missing a top" when
+  // they are also missing shoes just sends them back twice.
   const missing: string[] = [];
-  if (!has("top") && !has("one_piece") && !has("bottom") && !has("footwear") && !has("accessory")) {
-    return ["a top or a dress"];
-  }
   if (!has("top") && !has("one_piece")) missing.push("a top or a dress");
   else if (has("top") && !has("bottom") && !has("one_piece")) missing.push("a bottom");
+  if (!has("footwear")) missing.push("a pair of shoes");
   return missing;
 }
 
@@ -415,7 +511,7 @@ export function explainEmptyResult(
   }
   const missing = missingSlots(items);
   if (missing.length > 0) {
-    return `You're missing ${missing.join(" and ")} for a full outfit — add one and you'll get looks right away. Shoes are now optional, so top + bottom is enough.`;
+    return `You're missing ${missing.join(" and ")} for a full outfit. Every look needs a top, a bottom and shoes — jackets and accessories are optional extras.`;
   }
   return `Nothing you own is rated close to ${req.current_temp_f}°F. Try All Season pieces or widen a temperature range.`;
 }
