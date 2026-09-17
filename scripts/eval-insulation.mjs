@@ -95,6 +95,10 @@ check("long-sleeve polo alone is right", at(70, [polo, jeans]).gap,
   () => !at(70, [polo, jeans]).under && !at(70, [polo, jeans]).over, "likewise");
 check("tee + vest still under-dressed", at(70, [tee, vest, jeans]).gap,
   () => at(70, [tee, vest, jeans]).under, "two thin things are not one warm thing");
+check("bare shirt at 72F (22C) is under-dressed", at(72, [tee, jeans]).gap,
+  () => at(72, [tee, jeans]).under, "the live page called this 'right weight'");
+check("bare shirt at 76F is fine", at(76, [tee, jeans]).gap,
+  () => !at(76, [tee, jeans]).under, "the line belongs near 74F, not 71F");
 check("tee + heavy jacket is too warm", at(70, [tee, jacket, jeans]).gap,
   () => at(70, [tee, jacket, jeans]).over, "their only jacket is a winter jacket");
 

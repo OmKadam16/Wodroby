@@ -145,10 +145,22 @@ export function targetInsulation(tempF: number, windMph = 0): number {
  *
  * Asymmetric on purpose, and for the same reason the penalties are: a layer
  * too many is something you notice and take off, a layer too few is something
- * you feel all day. It also keeps the summer boundary honest — a t-shirt on an
- * 85F day is 2 above a target of 0, and must not be scolded for it.
+ * you feel all day. The wide upper figure also keeps the summer boundary
+ * honest — a t-shirt on an 85F day is 2 above a target of 0 and must not be
+ * scolded for it.
+ *
+ * The lower figure was 2 and is 1 because 2 put the boundary in the wrong
+ * place. It let a bare short-sleeve shirt pass as "right weight" at 72F while
+ * flagging it at 70F, which is a verdict flipping over less than two degrees,
+ * and 72F is precisely the morning the report was about. At 1 a bare top is
+ * flagged up to about 74F and accepted above it, which is where the line
+ * belongs.
+ *
+ * Where exactly one person wants that line is a matter of taste rather than
+ * physics, and taste is the thing this app does not yet know. It is what
+ * outfit_feedback is accumulating for.
  */
-export const UNDER_TOLERANCE = 2;
+export const UNDER_TOLERANCE = 1;
 export const OVER_TOLERANCE = 3.5;
 
 export type Coverage = {
