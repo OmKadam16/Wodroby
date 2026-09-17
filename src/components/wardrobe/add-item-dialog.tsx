@@ -80,6 +80,8 @@ type Draft = {
   rain_ready: boolean;
   primary_color: string;
   secondary_colors: string[];
+  /** Set by the reader, cleared the moment the colour is chosen by hand. */
+  color_lch: { l: number; c: number; h: number } | null;
   sleeve_length: SleeveLength | null;
   apparent_weight: ApparentWeight | null;
   warmth: WarmthLevel | null;
@@ -139,6 +141,7 @@ function makeDraft(p: PendingFile, fallback?: LastPick): Draft {
     rain_ready: RAIN_READY_SUBS.has(sub),
     primary_color: "unknown",
     secondary_colors: [],
+    color_lch: null,
     sleeve_length: null,
     apparent_weight: null,
     warmth: null,
@@ -282,6 +285,7 @@ export function AddItemDialog() {
               reading: reading.analysis,
               primary_color: reading.primaryColor ?? d.primary_color,
               secondary_colors: reading.secondaryColors,
+              color_lch: reading.colorLch,
             };
             // A category the user already chose outranks the model's.
             if (!entry || d.suggested) return withColor;
@@ -402,6 +406,9 @@ export function AddItemDialog() {
           sub_category: d.sub_category || d.category,
           primary_color: d.primary_color,
           secondary_colors: d.secondary_colors,
+          color_l: d.color_lch?.l ?? null,
+          color_c: d.color_lch?.c ?? null,
+          color_h: d.color_lch?.h ?? null,
           formality: d.formality,
           seasons: d.seasons,
           rain_ready: d.rain_ready,
@@ -589,7 +596,15 @@ export function AddItemDialog() {
                         <button
                           key={name}
                           type="button"
-                          onClick={() => patchDraft(d.id, { primary_color: name })}
+                          onClick={() =>
+                            patchDraft(d.id, {
+                              primary_color: name,
+                              // Correcting the name retires the measurement:
+                              // otherwise the engine goes on scoring the
+                              // pixels this tap just overruled.
+                              color_lch: null,
+                            })
+                          }
                           className={cn(
                             "shrink-0 rounded-full border px-3 py-1.5 text-xs capitalize",
                             d.primary_color === name

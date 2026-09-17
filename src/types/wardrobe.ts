@@ -104,6 +104,11 @@ export type WardrobeItem = {
   seasons: string[];
   rain_ready: boolean;
   sleeve_length: SleeveLength | null;
+  /** The measured colour, in OKLCH. Null on rows written before the reader
+   *  kept its coordinates, and on any item whose colour was set by hand. */
+  color_l: number | null;
+  color_c: number | null;
+  color_h: number | null;
   apparent_weight: ApparentWeight | null;
   warmth: WarmthLevel | null;
   min_temp_f: number;

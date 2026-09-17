@@ -1,10 +1,10 @@
 import { useState, useTransition } from "react";
 import { GarmentImage } from "@/components/garment-image";
-import { AlertTriangle, Bookmark, Check, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, Bookmark, Check, Loader2, Sparkles, X } from "lucide-react";
 import type { MatchLevel, Outfit, OutfitRequest } from "@/lib/outfit-engine";
 import { useTempUnit } from "@/components/temp-unit-toggle";
 import { displayTempText } from "@/lib/temp";
-import { toggleSaveOutfit } from "@/app/outfits/actions";
+import { dismissOutfit, toggleSaveOutfit } from "@/app/outfits/actions";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_LABELS } from "@/types/wardrobe";
 import { cn } from "@/lib/utils";
@@ -52,14 +52,18 @@ export function OutfitCard({
   request,
   saved,
   onToggle,
+  onDismiss,
 }: {
   outfit: Outfit;
   rank: number;
   request?: OutfitRequest;
   saved?: boolean;
   onToggle?: (id: string, nextSaved: boolean) => void;
+  /** Called once the look has been dismissed, so the list can drop it. */
+  onDismiss?: (id: string) => void;
 }) {
   const [isSaved, setIsSaved] = useState(!!saved);
+  const [dismissed, setDismissed] = useState(false);
   const [pending, startTransition] = useTransition();
   const [unit] = useTempUnit();
   const MatchIcon = MATCH_ICON[outfit.matchLevel];
@@ -75,6 +79,22 @@ export function OutfitCard({
       }
     });
   }
+
+  /*
+   * Dismissing hides the look and records that it was not wanted.
+   *
+   * The card goes immediately rather than waiting on the round trip: the
+   * record is bookkeeping for a future preference model, and no one should
+   * watch a spinner to say "not this one".
+   */
+  function handleDismiss() {
+    if (!request) return;
+    setDismissed(true);
+    onDismiss?.(outfit.id);
+    void dismissOutfit(outfit, request);
+  }
+
+  if (dismissed) return null;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card">
@@ -93,8 +113,20 @@ export function OutfitCard({
           <Button
             variant="ghost"
             size="icon"
+            className="ml-auto size-11 shrink-0 text-muted-foreground"
+            onClick={handleDismiss}
+            title="Not this one"
+          >
+            <X className="size-4" />
+            <span className="sr-only">Dismiss this look</span>
+          </Button>
+        )}
+        {request && (
+          <Button
+            variant="ghost"
+            size="icon"
             className={cn(
-              "-mr-2 ml-auto size-11 shrink-0",
+              "-mr-2 size-11 shrink-0",
               isSaved ? "text-clay-ink" : "text-muted-foreground",
             )}
             onClick={handleSave}

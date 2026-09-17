@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  PALETTE,
+  oklabToLch,
+  toOklab,
+  type Lch,
+} from "@/lib/color-harmony";
+
+
 /**
  * Reads the dominant colour off a garment photo.
  *
@@ -12,63 +20,14 @@
  * and rating every real wardrobe identically.
  */
 
-/**
- * The vocabulary. Every neutral the outfit engine recognises appears here
- * verbatim — see NEUTRALS in src/lib/outfit-engine.ts. A name outside that set
- * silently counts as a bold colour, so the two lists have to agree.
- */
-const PALETTE: { name: string; rgb: [number, number, number] }[] = [
-  { name: "black", rgb: [17, 17, 17] },
-  { name: "charcoal", rgb: [58, 58, 58] },
-  { name: "grey", rgb: [138, 138, 138] },
-  { name: "white", rgb: [255, 255, 255] },
-  { name: "off-white", rgb: [242, 240, 234] },
-  { name: "ivory", rgb: [255, 255, 240] },
-  { name: "cream", rgb: [245, 233, 208] },
-  { name: "beige", rgb: [232, 217, 184] },
-  { name: "tan", rgb: [203, 163, 106] },
-  { name: "khaki", rgb: [176, 160, 106] },
-  { name: "brown", rgb: [107, 74, 47] },
-  { name: "olive", rgb: [107, 107, 47] },
-  { name: "navy", rgb: [31, 42, 82] },
-  { name: "denim", rgb: [74, 111, 165] },
-  { name: "blue", rgb: [47, 111, 208] },
-  { name: "teal", rgb: [31, 143, 143] },
-  { name: "green", rgb: [58, 143, 58] },
-  { name: "yellow", rgb: [232, 201, 58] },
-  { name: "orange", rgb: [224, 122, 47] },
-  { name: "red", rgb: [192, 57, 43] },
-  { name: "maroon", rgb: [110, 31, 40] },
-  { name: "pink", rgb: [232, 143, 174] },
-  { name: "purple", rgb: [122, 79, 160] },
-];
-
-/** Every name this module can produce, for the picker that lets the user
- *  correct it. Ordered neutrals-first, which is how wardrobes skew. */
-export const COLOR_NAMES: string[] = PALETTE.map((entry) => entry.name);
+/** Re-exported so the add dialog keeps one import for everything colour. The
+ *  list itself lives with the palette it is built from. */
+export { COLOR_NAMES } from "@/lib/color-harmony";
 
 /** Sampling grid. Small on purpose — this is a colour census, not a thumbnail. */
 const GRID = 48;
 
 type Lab = [number, number, number];
-
-/** sRGB to OKLab, so "nearest colour" means nearest to the eye rather than
- *  nearest in a cube where green swamps everything. */
-function toOklab(r: number, g: number, b: number): Lab {
-  const lin = (c: number) => {
-    const v = c / 255;
-    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  };
-  const R = lin(r), G = lin(g), B = lin(b);
-  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
-  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
-  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
-  return [
-    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
-  ];
-}
 
 const PALETTE_LAB = PALETTE.map((entry) => ({ name: entry.name, lab: toOklab(...entry.rgb) }));
 
@@ -89,7 +48,18 @@ function nearestName(lab: Lab): string {
   return best;
 }
 
-export type GarmentColors = { primary: string; secondary: string[] };
+export type GarmentColors = {
+  primary: string;
+  secondary: string[];
+  /**
+   * The dominant colour's actual coordinates.
+   *
+   * Snapping to a name and discarding these was the mistake this fixes: the
+   * outfit engine needs to know how much colour there is and which, and a name
+   * can only be looked up in a list someone has to remember to maintain.
+   */
+  lch: Lch | null;
+};
 
 /**
  * Nothing here modifies the photo — it is drawn to a scratch canvas to be
@@ -137,6 +107,7 @@ export async function extractColors(file: File): Promise<GarmentColors | null> {
         : null;
 
     const weights = new Map<string, number>();
+    const sums = new Map<string, { l: number; a: number; b: number; w: number }>();
     const centre = (GRID - 1) / 2;
     let counted = 0;
 
@@ -152,17 +123,33 @@ export async function extractColors(file: File): Promise<GarmentColors | null> {
         const weight = Math.max(0.15, 1 - (dx * dx + dy * dy) / 2);
         const name = nearestName(lab);
         weights.set(name, (weights.get(name) ?? 0) + weight);
+        const sum = sums.get(name) ?? { l: 0, a: 0, b: 0, w: 0 };
+        sum.l += lab[0] * weight;
+        sum.a += lab[1] * weight;
+        sum.b += lab[2] * weight;
+        sum.w += weight;
+        sums.set(name, sum);
         counted += weight;
       }
     }
 
-    // The border colour swallowed the whole frame — a flat-lay on a plain sheet
+    // The border colour swallowed the whole frame: a flat-lay on a plain sheet
     // the same shade as the garment, most likely. Better to say nothing.
     if (counted === 0) return null;
 
     const ranked = [...weights.entries()].sort((a, b) => b[1] - a[1]);
+    const dominant = ranked[0][0];
+    // The weighted mean of the pixels that voted for the winning name, rather
+    // than the palette entry they snapped to: a sage jumper and a forest one
+    // both answer "green" but are not the same colour to wear.
+    const mean = sums.get(dominant);
+    const lch =
+      mean && mean.w > 0
+        ? oklabToLch([mean.l / mean.w, mean.a / mean.w, mean.b / mean.w])
+        : null;
     return {
-      primary: ranked[0][0],
+      primary: dominant,
+      lch,
       // Only colours with a real presence; a stray 3% is noise or a logo.
       secondary: ranked.slice(1, 3).filter(([, w]) => w / counted >= 0.15).map(([name]) => name),
     };

@@ -132,6 +132,54 @@ export async function generateOutfitsAction(
   };
 }
 
+/**
+ * Records what became of a look.
+ *
+ * Nothing reads this yet, and that is deliberate. Colour harmony and weather
+ * fit are closed-form problems and are now solved as such. Personal taste is
+ * not: whether brown works with navy *for you* can only be learned from you,
+ * and there is nothing to learn from until choices accumulate. This is where
+ * they accumulate.
+ *
+ * Failures are swallowed on purpose. A missed row costs a data point; an error
+ * shown to someone who just saved an outfit costs their confidence in the save.
+ */
+async function recordFeedback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  outfit: Outfit,
+  req: OutfitRequest,
+  action: "saved" | "dismissed",
+): Promise<void> {
+  try {
+    await supabase.from("outfit_feedback").insert({
+      user_id: userId,
+      outfit_id: outfit.id,
+      item_ids: outfit.items.map((i) => i.id),
+      temp: Math.round(req.current_temp_f),
+      occasion: req.occasion ?? null,
+      is_rainy: Boolean(req.is_rainy),
+      action,
+    });
+  } catch {
+    // See above: this is bookkeeping, never the user's problem.
+  }
+}
+
+/** Hides a look and records that it was not wanted. */
+export async function dismissOutfit(
+  outfit: Outfit,
+  req: OutfitRequest,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+  await recordFeedback(supabase, user.id, outfit, req, "dismissed");
+  return { ok: true };
+}
+
 export async function getSavedOutfits(): Promise<{
   ok: true;
   outfits: Outfit[];
@@ -214,6 +262,7 @@ export async function toggleSaveOutfit(outfit: Outfit, req: OutfitRequest): Prom
     compromises: outfit.compromises,
   });
   if (error) return { ok: false, error: error.message };
+  await recordFeedback(supabase, user.id, outfit, req, "saved");
   return { ok: true, saved: true };
 }
 

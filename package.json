@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "build:text-embeddings": "node --experimental-strip-types --no-warnings scripts/build-text-embeddings.mjs",
     "classify": "node --experimental-strip-types --no-warnings --import ./scripts/register-loader.mjs scripts/classify-image.mjs",
-    "eval:vision": "node --experimental-strip-types --no-warnings --import ./scripts/register-loader.mjs scripts/eval-vision.mjs"
+    "eval:vision": "node --experimental-strip-types --no-warnings --import ./scripts/register-loader.mjs scripts/eval-vision.mjs",
+    "eval:color": "node --experimental-strip-types --no-warnings --import ./scripts/register-loader.mjs scripts/eval-color.mjs",
+    "reseason": "node --experimental-strip-types --no-warnings --import ./scripts/register-loader.mjs scripts/reseason.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",

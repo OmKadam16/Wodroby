@@ -34,6 +34,10 @@ export type SaveItemInput = {
   sleeve_length: SleeveLength | null;
   apparent_weight: ApparentWeight | null;
   warmth: WarmthLevel | null;
+  /** Measured colour, or null when the reader failed or the user chose by hand. */
+  color_l: number | null;
+  color_c: number | null;
+  color_h: number | null;
   occasions: string[];
   wear_notes: string;
   layering_role: LayeringRole;
@@ -81,6 +85,26 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
     return { ok: false, error: "Invalid garment attribute." };
   }
 
+  /*
+   * The measured colour. All three coordinates travel together or not at all:
+   * a half-written triple would read as a colour nobody chose, and `colorOf`
+   * only trusts the numbers when every one of them is present.
+   */
+  const inRange = (v: number | null, lo: number, hi: number) =>
+    v === null || (Number.isFinite(v) && v >= lo && v <= hi);
+  if (
+    !inRange(input.color_l, 0, 1) ||
+    !inRange(input.color_c, 0, 0.5) ||
+    !inRange(input.color_h, 0, 360)
+  ) {
+    return { ok: false, error: "Invalid colour measurement." };
+  }
+  const complete =
+    input.color_l !== null && input.color_c !== null && input.color_h !== null;
+  const colorL = complete ? input.color_l : null;
+  const colorC = complete ? input.color_c : null;
+  const colorH = complete ? input.color_h : null;
+
   const rainReady = Boolean(input.rain_ready);
   // Derived, never sent by the client. This is the single point that keeps
   // seasons and the temperature range from drifting apart again.
@@ -100,6 +124,9 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
     sleeve_length: sleeveLength,
     apparent_weight: apparentWeight,
     warmth,
+    color_l: colorL,
+    color_c: colorC,
+    color_h: colorH,
     min_temp_f: min,
     max_temp_f: max,
     // Kept coherent as a derived mirror so the legacy readers of this column

@@ -213,9 +213,21 @@ export function deriveSeasons(input: DeriveSeasonsInput): Season[] {
   // something reached for in spring. Weight is what separates it from a warm
   // midweight hoodie, which is very much a spring layer.
   if (outerLayer && warmth === "high" && apparentWeight === "heavy") drop.add("spring");
-  if (apparentWeight === "light" || warmth === "low" || sleeveLength === "sleeveless") {
+  if (
+    apparentWeight === "light" ||
+    warmth === "low" ||
+    sleeveLength === "sleeveless" ||
+    // Bare arms are bare arms. A short-sleeve top is not a winter garment on
+    // its own, whatever the fabric weighs.
+    sleeveLength === "short"
+  ) {
     drop.add("winter");
   }
+  // Covered arms in anything but a light fabric is not what anyone reaches for
+  // in summer. Without this, a medium-weight, medium-warmth long-sleeve keeps
+  // all four seasons, which is how half this wardrobe ended up rated 15 to 105
+  // and invisible to the forecast.
+  if (sleeveLength === "long" && apparentWeight !== "light") drop.add("summer");
 
   const kept = start.filter((s) => !drop.has(s));
   // Never leave a garment with no season at all; contradictory readings mean

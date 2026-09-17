@@ -32,6 +32,8 @@ export type GarmentReading = {
   analysis: ClothingAnalysis;
   primaryColor: string | null;
   secondaryColors: string[];
+  /** The measured colour behind `primaryColor`, for the outfit engine. */
+  colorLch: { l: number; c: number; h: number } | null;
 };
 
 /** Everything a draft needs, once a category is settled. */
@@ -72,6 +74,7 @@ export async function readGarment(file: File): Promise<GarmentReading | null> {
           },
           primaryColor: colors.primary,
           secondaryColors: colors.secondary,
+          colorLch: colors.lch,
         }
       : null;
   }
@@ -80,6 +83,7 @@ export async function readGarment(file: File): Promise<GarmentReading | null> {
     analysis: classifyEmbedding(embedding, table),
     primaryColor: colors?.primary ?? null,
     secondaryColors: colors?.secondary ?? [],
+    colorLch: colors?.lch ?? null,
   };
 }
 

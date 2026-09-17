@@ -1,4 +1,6 @@
 import type { WardrobeItemView } from "@/lib/storage";
+import { harmony } from "@/lib/color-harmony";
+import { itemSeasons, seasonForToday } from "@/lib/seasons";
 import {
   occasionLabel,
   type Formality,
@@ -85,24 +87,6 @@ type Assessment = {
   rainSafe: boolean;
 };
 
-const NEUTRALS = new Set([
-  "black",
-  "white",
-  "grey",
-  "gray",
-  "beige",
-  "cream",
-  "tan",
-  "navy",
-  "denim",
-  "khaki",
-  "brown",
-  "charcoal",
-  "ivory",
-  "off-white",
-  "olive",
-]);
-
 function suitsRain(item: WardrobeItem): boolean {
   if (item.rain_ready) return true;
   // Rows written before rain_ready existed carry it in the condition list, and
@@ -139,17 +123,6 @@ export function assess(item: WardrobeItemView, req: OutfitRequest): Assessment {
 /** Wearable today, allowing for the tolerance band — bottoms, shoes and accessories are flexible across seasons. */
 export function isWearable(item: WardrobeItem, temp: number): boolean {
   return degreesOutside(item, temp) <= toleranceFor(item);
-}
-
-function colorHarmony(items: WardrobeItem[]): number {
-  const colors = items.map((i) => i.primary_color.toLowerCase());
-  const bold = colors.filter((c) => !NEUTRALS.has(c)).length;
-  // One statement colour against neutrals reads best; all-neutral is safe;
-  // three or more competing colours is penalised.
-  if (bold === 1) return 1;
-  if (bold === 0) return 0.8;
-  if (bold === 2) return 0.5;
-  return 0.2;
 }
 
 function formalityCohesion(items: WardrobeItem[]): number {
@@ -213,6 +186,41 @@ function evaluate(
     );
   }
 
+  /*
+   * --- colour ---
+   *
+   * Placed here rather than with the other styling checks because the card
+   * shows only the first three reasons, and which colour is carrying a look is
+   * more worth one of those slots than the fact that it is layered.
+   */
+  const palette = harmony(items);
+  if (palette.note && palette.score >= 0.85) {
+    // The specific sentence instead of the generic one, never both: they are
+    // the same observation and the specific one is the useful half.
+    reasons.push(palette.note);
+  } else if (palette.score >= 0.8) {
+    reasons.push("Balanced colour palette");
+  }
+  if (palette.note && palette.score <= 0.4) compromises.push(palette.note);
+
+  /*
+   * A garment picked for today should beat one that merely tolerates it.
+   *
+   * `degreesOutside` returns 0 both for a summer shirt on a summer day and for
+   * an all-season item rated 15 to 105, so without this they score identically
+   * and the wardrobe never feels sorted by the weather. Anything claiming all
+   * four seasons has expressed no preference and earns nothing here.
+   */
+  const today = seasonForToday(req.current_temp_f, new Date());
+  const chosenForToday = picks.filter((p) => {
+    const seasons = itemSeasons(p.item);
+    return seasons.length < 4 && seasons.includes(today);
+  }).length;
+  if (chosenForToday > 0) {
+    penalty -= Math.min(4, chosenForToday * 1.5);
+    if (chosenForToday >= 2) reasons.push(`Picked for ${today}`);
+  }
+
   const hasOuterwear = items.some((i) => i.category === "outerwear");
   if (req.current_temp_f < OUTERWEAR_EXPECTED_BELOW_F && !hasOuterwear) {
     penalty += 8;
@@ -234,17 +242,14 @@ function evaluate(
     }
   }
 
-  // --- styling ---
-  const harmony = colorHarmony(items);
   const cohesion = formalityCohesion(items);
-  if (harmony >= 0.8) reasons.push("Balanced colour palette");
   if (cohesion === 1) {
     reasons.push(`Consistently ${items[0].formality.replace("_", " ")}`);
   }
 
   const score = Math.max(
     0,
-    Math.round((60 + harmony * 20 + cohesion * 20 - penalty) * 10) / 10,
+    Math.round((60 + palette.score * 20 + cohesion * 20 - penalty) * 10) / 10,
   );
 
   const matchLevel: MatchLevel =
