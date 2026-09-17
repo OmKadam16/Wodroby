@@ -148,9 +148,12 @@ export function seasonSummary(seasons: Season[]): string {
  * alone can tell them apart — the date is the missing input. A freak day
  * overrides the calendar so the badge agrees with the sky.
  *
- * Display only. Nothing in outfit scoring reads this; wiring it into
- * generation would create a second, disagreeing notion of "today".
- * Northern hemisphere.
+ * Read by the outfits badge and by one term in the engine, which gives a small
+ * bonus to a garment picked for today's season over one merely tolerant of it.
+ * That is the whole of its influence on scoring, and it is deliberately small:
+ * this is a calendar, so it is a northern-hemisphere assumption, and the
+ * weather judgement that actually decides whether a look is warm enough is
+ * made from measured attributes in lib/insulation.ts instead.
  */
 export function seasonForToday(tempF: number, date = new Date()): Season {
   if (tempF >= 80) return "summer";

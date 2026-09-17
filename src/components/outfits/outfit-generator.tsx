@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Bookmark,
   Droplets,
@@ -78,11 +78,26 @@ export function OutfitGenerator() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [unit, setUnit] = useTempUnit();
 
-  const request: OutfitRequest = {
-    current_temp_f: temp,
-    occasion,
-    is_rainy: isRainy,
-  };
+  /*
+   * One request object, used for generating, for paging and for saving, so a
+   * look is never scored against different weather than it is recorded under.
+   *
+   * Sky and wind come from the forecast and stay there even when the
+   * temperature slider is moved by hand: asking "what would I wear at 60F"
+   * does not change whether the sun is out right now. Both are left undefined
+   * when no forecast loaded — the engine reads that as no opinion rather than
+   * as an overcast, still day.
+   */
+  const request: OutfitRequest = useMemo(
+    () => ({
+      current_temp_f: temp,
+      occasion,
+      is_rainy: isRainy,
+      is_sunny: weather ? weather.condition === "sunny" : undefined,
+      wind_mph: weather?.wind_mph,
+    }),
+    [temp, occasion, isRainy, weather],
+  );
 
   const loadWeather = useCallback(() => {
     if (!("geolocation" in navigator)) {
@@ -166,11 +181,7 @@ export function OutfitGenerator() {
     setError(null);
 
     startTransition(async () => {
-      const result = await generateOutfitsAction({
-        current_temp_f: temp,
-        occasion,
-        is_rainy: isRainy,
-      });
+      const result = await generateOutfitsAction(request);
 
       if (!result.ok) {
         setError(result.error);
@@ -198,10 +209,7 @@ export function OutfitGenerator() {
     setLoadingMore(true);
     const offset = outfits.length;
 
-    generateOutfitsAction(
-      { current_temp_f: temp, occasion, is_rainy: isRainy },
-      offset,
-    )
+    generateOutfitsAction(request, offset)
       .then((result) => {
         if (!result.ok) {
           setError(result.error);

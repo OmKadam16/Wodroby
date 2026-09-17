@@ -9,6 +9,7 @@ import {
   type Outfit,
   type OutfitRequest,
 } from "@/lib/outfit-engine";
+import { coverageOf } from "@/lib/insulation";
 import { withSignedUrls, type WardrobeItemView } from "@/lib/storage";
 import {
   OCCASIONS,
@@ -63,6 +64,15 @@ export async function generateOutfitsAction(
     current_temp_f: temp,
     occasion,
     is_rainy: Boolean(req.is_rainy),
+    // Left undefined rather than defaulted when the client did not send them.
+    // The engine treats unknown as "no opinion"; defaulting `is_sunny` to
+    // false would quietly scold every pair of sunglasses whenever a forecast
+    // failed to load.
+    is_sunny: typeof req.is_sunny === "boolean" ? req.is_sunny : undefined,
+    wind_mph:
+      typeof req.wind_mph === "number" && Number.isFinite(req.wind_mph)
+        ? Math.max(0, Math.round(req.wind_mph))
+        : undefined,
   };
 
   // Widen to max category tolerance (accessories 40) so flexible pieces like jeans/skirts aren't cut by SQL — engine does per-category filtering.
@@ -285,11 +295,24 @@ function buildNotice(
     }
   }
 
-  const needsLayer = outfits.every(
+  /*
+   * Asked of the looks themselves rather than of a fixed temperature. The old
+   * version fired below 60F whatever the wardrobe contained, so it stayed
+   * silent on the 70F morning where every look really was too thin, and
+   * announced a gap at 59F that a heavy sweater had already covered.
+   */
+  const everyLookIsThin =
+    outfits.length > 0 &&
+    outfits.every(
+      (o) =>
+        coverageOf(o.items, req.current_temp_f, req.wind_mph ?? 0)?.under ===
+        true,
+    );
+  const noLayers = outfits.every(
     (o) => !o.items.some((i) => i.category === "outerwear"),
   );
-  if (req.current_temp_f < 60 && needsLayer) {
-    return `No outerwear in your wardrobe fits ${req.current_temp_f}°F. These work otherwise — throw a jacket over the top.`;
+  if (everyLookIsThin && noLayers) {
+    return `Nothing in your wardrobe covers up for ${req.current_temp_f}°F. These work otherwise — throw a jacket over the top.`;
   }
 
   return "Nothing matches perfectly today, so these are the closest your wardrobe gets.";

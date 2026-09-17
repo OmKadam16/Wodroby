@@ -1,5 +1,11 @@
 import type { WardrobeItemView } from "@/lib/storage";
 import { harmony } from "@/lib/color-harmony";
+import {
+  coverageOf,
+  coveragePenalty,
+  coverageVerdict,
+  needsSun,
+} from "@/lib/insulation";
 import { itemSeasons, seasonForToday } from "@/lib/seasons";
 import {
   occasionLabel,
@@ -19,9 +25,6 @@ import {
  * offered, carrying a note about the compromise, because a wardrobe with three
  * items in it should never return an empty screen.
  */
-
-/** Below this, an outfit without a layer is marked as a compromise. */
-export const OUTERWEAR_EXPECTED_BELOW_F = 60;
 
 /** How far outside its rated range a piece may stray before it is ignored. */
 export const TEMP_TOLERANCE_F = 15;
@@ -61,6 +64,11 @@ export type OutfitRequest = {
   current_temp_f: number;
   occasion: Occasion | null;
   is_rainy: boolean;
+  /** From the forecast. Both optional, and both change nothing when absent —
+   *  an older client or a cached request simply gets the judgement it got
+   *  before, rather than one built on a guessed sky. */
+  is_sunny?: boolean;
+  wind_mph?: number;
 };
 
 /** How well an outfit answers the request. */
@@ -173,17 +181,37 @@ function evaluate(
   }
 
   // --- temperature ---
+  /*
+   * Two checks doing two different jobs.
+   *
+   * The stored range is per-garment and coarse, and it stays because it is the
+   * only thing that catches a parka offered on a 90F day. It cannot answer
+   * "am I dressed for this", because the season bands it is derived from
+   * overlap so heavily that a short-sleeve t-shirt and a long-sleeve
+   * sweatshirt are both "in range" at 70F with zero degrees outside. Coverage
+   * is per-outfit and answers that question from the attributes the reader
+   * measured. See lib/insulation.ts.
+   */
   const stretched = picks.filter((p) => p.tempOff > 0);
   penalty += stretched.reduce((sum, p) => sum + p.tempOff * 1.2, 0);
-
-  if (stretched.length === 0) {
-    reasons.push(`Rated for ${req.current_temp_f}°F`);
-  } else {
+  if (stretched.length > 0) {
     const worst = [...stretched].sort((a, b) => b.tempOff - a.tempOff)[0];
     const direction = tooWarmOrCold(worst, req.current_temp_f);
     compromises.push(
       `${worst.item.item_name} runs ${direction === "warm" ? "warm" : "light"} for ${req.current_temp_f}°F`,
     );
+  }
+
+  const coverage = coverageOf(items, req.current_temp_f, req.wind_mph ?? 0);
+  if (coverage) {
+    penalty += coveragePenalty(coverage);
+    const verdict = coverageVerdict(coverage, req.current_temp_f);
+    if (verdict.isCompromise) compromises.push(verdict.text);
+    else if (stretched.length === 0) reasons.push(verdict.text);
+  } else if (stretched.length === 0) {
+    // A torso piece predates the reader, so there is nothing measured to
+    // weigh. The stored range is all this look can honestly be judged on.
+    reasons.push(`Rated for ${req.current_temp_f}°F`);
   }
 
   /*
@@ -221,14 +249,34 @@ function evaluate(
     if (chosenForToday >= 2) reasons.push(`Picked for ${today}`);
   }
 
+  /*
+   * Layering is a positive note now, not a rule.
+   *
+   * The rule it replaces demanded outerwear below a fixed 60F and said nothing
+   * above it, which is why a sleeveless vest passed unremarked on a 70F
+   * morning while a heavy sweater at 59F was told it needed a jacket. Coverage
+   * above already judges what the outfit puts on the body, in both directions
+   * and at every temperature, so a second opinion here could only disagree
+   * with it.
+   */
   const hasOuterwear = items.some((i) => i.category === "outerwear");
-  if (req.current_temp_f < OUTERWEAR_EXPECTED_BELOW_F && !hasOuterwear) {
-    penalty += 8;
-    compromises.push(
-      `No layer for ${req.current_temp_f}°F — you'll want a jacket over this`,
-    );
-  } else if (hasOuterwear) {
-    reasons.push("Layered with outerwear");
+  if (hasOuterwear && !coverage?.over) reasons.push("Layered with outerwear");
+
+  // --- the sky ---
+  /*
+   * Temperature is the wrong axis for a few things. Sunglasses were coming
+   * back on cool overcast mornings because their rated range contains almost
+   * every day there is; the forecast knew better and was not being asked.
+   * Only an explicit "not sunny" counts — an unknown sky changes nothing.
+   */
+  if (req.is_sunny === false) {
+    const sunOnly = picks.filter((p) => needsSun(p.item));
+    if (sunOnly.length > 0) {
+      penalty += 6;
+      compromises.push(
+        `No sun today for the ${sunOnly.map((p) => p.item.item_name).join(" or ")}`,
+      );
+    }
   }
 
   // --- rain ---
