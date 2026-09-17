@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/sign-out-button";
 import { TempUnitSetting } from "@/components/temp-unit-setting";
 import { ThemeSetting } from "@/components/theme-setting";
+import { ReanalysePanel } from "@/components/wardrobe/reanalyse-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,8 @@ export default async function SettingsPage() {
         <TempUnitSetting />
 
         <ThemeSetting />
+
+        <ReanalysePanel />
 
         <SignOutButton variant="outline" size="default" />
       </div>

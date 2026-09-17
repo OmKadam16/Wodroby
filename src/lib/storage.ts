@@ -22,6 +22,29 @@ export function storagePath(imageUrl: string): string {
 }
 
 /**
+ * Signs the untransformed originals.
+ *
+ * `withSignedUrls` asks storage for 400px cover-cropped renditions, which is
+ * right for a grid of thumbnails and wrong for re-reading a garment: a cover
+ * crop can cut a sleeve off, and the classifier would then be shown something
+ * the wearer never uploaded. Analysis gets the file as taken.
+ */
+export async function signOriginals<T extends WardrobeItem>(
+  supabase: SupabaseClient,
+  items: T[],
+): Promise<(T & { source_url: string })[]> {
+  if (items.length === 0) return [];
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrls(items.map((i) => storagePath(i.image_url)), SIGNED_URL_TTL_SECONDS);
+  if (error || !data) return items.map((item) => ({ ...item, source_url: "" }));
+  return items.map((item, index) => ({
+    ...item,
+    source_url: data[index]?.signedUrl ?? "",
+  }));
+}
+
+/**
  * Mints one short-lived signed link per item. The bucket is private, so this
  * is the only way a photo reaches the browser, and the storage RLS policy
  * still decides whether the caller is allowed to see it.

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { conditionsFor, seasonsToTempRange } from "@/lib/seasons";
-import { BUCKET, storagePath } from "@/lib/storage";
+import { BUCKET, signOriginals, storagePath } from "@/lib/storage";
+import type { WardrobeItem } from "@/types/wardrobe";
 import {
   APPARENT_WEIGHTS,
   CATEGORIES,
@@ -204,6 +205,140 @@ export async function deleteItem(id: string): Promise<ActionResult> {
 
   if (error) return { ok: false, error: error.message };
 
+  revalidatePath("/wardrobe");
+  revalidatePath("/outfits");
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Re-analysis                                                               */
+/*                                                                           */
+/* Items added before the reader existed, or before it learned to keep the   */
+/* colour coordinates, carry less than the engine can now use. Rather than    */
+/* ask anyone to delete and re-add a wardrobe, the same pipeline that runs on */
+/* an upload is run again over what is already stored.                        */
+/*                                                                           */
+/* It runs in the browser, exactly like the original analysis: the photo is   */
+/* fetched from the wearer's own storage, read on their device, and only the  */
+/* resulting words and numbers come back here. No image is sent anywhere, and */
+/* the stored file is never rewritten.                                        */
+/* ------------------------------------------------------------------------- */
+
+export type ReanalysisTarget = {
+  id: string;
+  item_name: string;
+  category: Category;
+  sub_category: string;
+  primary_color: string;
+  seasons: string[];
+  sleeve_length: SleeveLength | null;
+  apparent_weight: ApparentWeight | null;
+  warmth: WarmthLevel | null;
+  has_measured_color: boolean;
+  /** Short-lived link to the original, uncropped photo. */
+  source_url: string;
+};
+
+export async function getItemsForReanalysis(): Promise<
+  { ok: true; items: ReanalysisTarget[] } | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const { data, error } = await supabase
+    .from("wardrobe_items")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true });
+  if (error) return { ok: false, error: error.message };
+
+  const signed = await signOriginals(supabase, (data ?? []) as WardrobeItem[]);
+  return {
+    ok: true,
+    items: signed.map((item) => ({
+      id: item.id,
+      item_name: item.item_name,
+      category: item.category,
+      sub_category: item.sub_category,
+      primary_color: item.primary_color,
+      seasons: item.seasons ?? [],
+      sleeve_length: item.sleeve_length,
+      apparent_weight: item.apparent_weight,
+      warmth: item.warmth,
+      has_measured_color: item.color_l !== null,
+      source_url: item.source_url,
+    })),
+  };
+}
+
+export type AnalysisPatch = {
+  primary_color: string;
+  secondary_colors: string[];
+  color_l: number | null;
+  color_c: number | null;
+  color_h: number | null;
+  sleeve_length: SleeveLength | null;
+  apparent_weight: ApparentWeight | null;
+  warmth: WarmthLevel | null;
+  seasons: Season[];
+};
+
+/**
+ * Writes one item's re-read.
+ *
+ * Deliberately not touching `category`, `sub_category` or `item_name`. Those
+ * are the fields someone is most likely to have corrected by hand, and a
+ * second opinion from the same model that got them wrong the first time is no
+ * reason to overwrite a human. Disagreements are reported instead.
+ */
+export async function applyAnalysis(
+  id: string,
+  patch: AnalysisPatch,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const sleeveLength = optionalAttribute(patch.sleeve_length, SLEEVE_LENGTHS);
+  const apparentWeight = optionalAttribute(patch.apparent_weight, APPARENT_WEIGHTS);
+  const warmth = optionalAttribute(patch.warmth, WARMTH_LEVELS);
+  if (sleeveLength === undefined || apparentWeight === undefined || warmth === undefined) {
+    return { ok: false, error: "Invalid garment attribute." };
+  }
+
+  const seasons = [...new Set(patch.seasons)].filter(isSeason);
+  if (seasons.length === 0) return { ok: false, error: "Derived no season." };
+
+  const complete =
+    patch.color_l !== null && patch.color_c !== null && patch.color_h !== null;
+  const { min, max } = seasonsToTempRange(seasons);
+  const rainReady = false;
+
+  const { error } = await supabase
+    .from("wardrobe_items")
+    .update({
+      primary_color: patch.primary_color.trim().toLowerCase() || "unknown",
+      secondary_colors: patch.secondary_colors,
+      color_l: complete ? patch.color_l : null,
+      color_c: complete ? patch.color_c : null,
+      color_h: complete ? patch.color_h : null,
+      sleeve_length: sleeveLength,
+      apparent_weight: apparentWeight,
+      warmth,
+      seasons,
+      min_temp_f: min,
+      max_temp_f: max,
+      suitable_conditions: conditionsFor(seasons, rainReady),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { ok: false, error: error.message };
   revalidatePath("/wardrobe");
   revalidatePath("/outfits");
   return { ok: true };

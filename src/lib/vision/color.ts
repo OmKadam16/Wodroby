@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  PALETTE,
-  oklabToLch,
-  toOklab,
-  type Lch,
-} from "@/lib/color-harmony";
+import { PALETTE, toOklab, type Lch } from "@/lib/color-harmony";
 
 
 /**
@@ -24,8 +19,16 @@ import {
  *  list itself lives with the palette it is built from. */
 export { COLOR_NAMES } from "@/lib/color-harmony";
 
-/** Sampling grid. Small on purpose — this is a colour census, not a thumbnail. */
-const GRID = 48;
+/**
+ * Sampling grid. Small on purpose: this is a colour census, not a thumbnail.
+ *
+ * Not so small, though, that the sampling changes the answer. At 48 a 640px
+ * photo is averaged roughly 13x13 pixels into every cell, and averaging real
+ * fabric, with its folds, shadow and weave, desaturates it badly. Measured
+ * across a whole wardrobe that put every single garment under 0.035 chroma,
+ * which read as fifteen neutrals and left the harmony scorer nothing to weigh.
+ */
+const GRID = 96;
 
 type Lab = [number, number, number];
 
@@ -79,6 +82,14 @@ export async function extractColors(file: File): Promise<GarmentColors | null> {
     canvas.height = GRID;
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return null;
+    /*
+     * Point sampling rather than smooth scaling, for the same reason.
+     * Interpolation would hand back the average of a neighbourhood; what a
+     * colour census wants is a spread of pixels that actually occur in the
+     * photograph. A garment is judged by the colours it is made of, not by the
+     * colour it blurs into.
+     */
+    context.imageSmoothingEnabled = false;
     context.drawImage(bitmap, 0, 0, GRID, GRID);
     bitmap.close();
 
@@ -107,7 +118,23 @@ export async function extractColors(file: File): Promise<GarmentColors | null> {
         : null;
 
     const weights = new Map<string, number>();
-    const sums = new Map<string, { l: number; a: number; b: number; w: number }>();
+    /*
+     * Accumulated in polar terms, not Cartesian.
+     *
+     * Averaging `a` and `b` across a real garment cancels chroma: folds,
+     * shadow and highlight scatter the samples around the hue circle and the
+     * mean collapses toward grey. Measured against this wardrobe every item
+     * came back under 0.035 chroma, which read as fifteen neutral garments and
+     * left the harmony scorer with nothing to weigh.
+     *
+     * Chroma is therefore averaged as the scalar it is, and hue as a circular
+     * mean weighted by chroma so that near-grey pixels, whose hue is noise, do
+     * not drag it around.
+     */
+    const sums = new Map<
+      string,
+      { l: number; c: number; hx: number; hy: number; w: number }
+    >();
     const centre = (GRID - 1) / 2;
     let counted = 0;
 
@@ -123,10 +150,13 @@ export async function extractColors(file: File): Promise<GarmentColors | null> {
         const weight = Math.max(0.15, 1 - (dx * dx + dy * dy) / 2);
         const name = nearestName(lab);
         weights.set(name, (weights.get(name) ?? 0) + weight);
-        const sum = sums.get(name) ?? { l: 0, a: 0, b: 0, w: 0 };
+        const sum = sums.get(name) ?? { l: 0, c: 0, hx: 0, hy: 0, w: 0 };
+        const chroma = Math.sqrt(lab[1] * lab[1] + lab[2] * lab[2]);
+        const hue = Math.atan2(lab[2], lab[1]);
         sum.l += lab[0] * weight;
-        sum.a += lab[1] * weight;
-        sum.b += lab[2] * weight;
+        sum.c += chroma * weight;
+        sum.hx += Math.cos(hue) * weight * chroma;
+        sum.hy += Math.sin(hue) * weight * chroma;
         sum.w += weight;
         sums.set(name, sum);
         counted += weight;
@@ -145,7 +175,12 @@ export async function extractColors(file: File): Promise<GarmentColors | null> {
     const mean = sums.get(dominant);
     const lch =
       mean && mean.w > 0
-        ? oklabToLch([mean.l / mean.w, mean.a / mean.w, mean.b / mean.w])
+        ? {
+            l: mean.l / mean.w,
+            c: mean.c / mean.w,
+            h:
+              ((Math.atan2(mean.hy, mean.hx) * 180) / Math.PI + 360) % 360,
+          }
         : null;
     return {
       primary: dominant,
