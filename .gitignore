@@ -106,3 +106,25 @@ yarn-error.log*
 skills-lock.json
 brag-output/
 brag-output-*/
+
+# ---------------------------------------------------------------------------
+# Video, and the working files that go with it.
+#
+# Promo and demo clips are generated into this directory by video tooling. They
+# are large, they are regenerable, and they are not part of the app: nothing in
+# src/ loads a video, and the only <video> this project would ever want is a
+# hosted one. Ignored by extension as well as by folder, so a clip written
+# somewhere new is still caught.
+#
+# This does NOT retract anything already committed. Git ignores untracked
+# files only; a video that has been committed stays in history until it is
+# rewritten out. Check with: git log --all --name-only | grep -i '\.mp4'
+# ---------------------------------------------------------------------------
+*.mp4
+*.mov
+*.webm
+*.m4v
+*.avi
+*.mkv
+*.prproj
+*.aep
