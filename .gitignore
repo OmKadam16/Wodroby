@@ -99,3 +99,10 @@ yarn-error.log*
 # they encode lives in src/app/globals.css and the components.
 # ---------------------------------------------------------------------------
 /design/
+
+# Claude Code plugin/skill caches and their scratch output. These are dropped
+# into the project directory by installed skills, not written by this app.
+.agents/
+skills-lock.json
+brag-output/
+brag-output-*/

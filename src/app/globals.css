@@ -363,3 +363,80 @@ body {
   background: var(--warm);
   box-shadow: inset 0 0 0 1px var(--inset);
 }
+
+/* ---------------------------------------------------------------------------
+   Landing motion.
+
+   Transform and opacity only, so every one of these runs on the compositor
+   and never triggers layout. The cascade is driven by `--i` on each element
+   rather than a JS orchestrator — there is no state here to animate, only an
+   entrance, so a stylesheet does it at zero runtime cost.
+   --------------------------------------------------------------------------- */
+
+@keyframes rise {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -10px, 0); }
+}
+
+@keyframes sheen {
+  from { transform: translate3d(-120%, 0, 0); }
+  to   { transform: translate3d(220%, 0, 0); }
+}
+
+/* Entrance. `--i` is the position in the cascade; 70ms reads as one gesture
+   rather than a queue. */
+.rise {
+  opacity: 0;
+  animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+/* Perpetual, and deliberately slow — at 9s it registers as the page being
+   alive rather than as something demanding attention. */
+.drift {
+  animation: drift 9s ease-in-out infinite;
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in oklab, var(--surface) 55%, transparent) 50%,
+    transparent 70%
+  );
+  animation: sheen 4.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+/* The house easing for anything that responds to a pointer. */
+.tactile {
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tactile:active {
+  transform: translate3d(0, 1px, 0);
+}
+
+/* Motion is decoration here; none of it carries meaning that would be lost. */
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .drift,
+  .sheen::after {
+    animation: none;
+  }
+  .rise { opacity: 1; }
+  .tactile { transition: none; }
+}
