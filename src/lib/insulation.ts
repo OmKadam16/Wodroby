@@ -267,6 +267,126 @@ export function coverageVerdict(
   return { text: `Right weight for ${tempF}°F`, isCompromise: false };
 }
 
+/* ------------------------------------------------------------------
+   Legs
+   ------------------------------------------------------------------ */
+
+/**
+ * What a kind of bottom does for the legs.
+ *
+ * This module used to stop at the torso, on the grounds that sleeve length has
+ * no counterpart for legs and inventing one from `sub_category` would be the
+ * kind of guess this codebase refuses to make. That was half right. Reading a
+ * length off an arbitrary string would be a guess — but `sub_category` is not
+ * arbitrary. It is one of the ids in the controlled vocabulary in
+ * lib/vision/prompts.ts, chosen by the classifier from that fixed list, and
+ * whether shorts leave the legs bare is a fact about shorts in exactly the way
+ * that `layering_role` is a fact about cardigans. Both are declared beside the
+ * garment rather than asked of the model, for the same reason: putting it in a
+ * prompt would only add a way to get it wrong. `needsSun` below already reads
+ * this same field.
+ *
+ * Anything whose length genuinely varies is absent on purpose. A skirt or a
+ * dress may be a mini or an ankle-length midi, the vocabulary does not say
+ * which, and no attribute the reader emits distinguishes them — so they return
+ * null and the legs go unjudged, the same way an unread torso piece does.
+ */
+const LEG_COVERAGE: Record<string, "bare" | "full"> = {
+  shorts: "bare",
+  romper: "bare",
+  jeans: "full",
+  trousers: "full",
+  leggings: "full",
+  joggers: "full",
+  "cargo pants": "full",
+  palazzo: "full",
+  jumpsuit: "full",
+  gown: "full",
+  // skirt, dress: length is not decidable from the vocabulary. Not guessed.
+};
+
+export function legCoverageOf(item: {
+  sub_category: string | null;
+}): "bare" | "full" | null {
+  return LEG_COVERAGE[(item.sub_category ?? "").trim().toLowerCase()] ?? null;
+}
+
+/** Categories worn on the lower body. */
+const LEGS = new Set(["bottom", "one_piece"]);
+
+/**
+ * The temperature at and above which bare legs need no comment.
+ *
+ * Anchored the way `targetInsulation` is, on judgements most people share:
+ * shorts are obviously right at 85F, fine at 75F, a compromise at 68F, and
+ * plainly wrong at 55F. 68F is 20C — the morning this was reported on, where
+ * the app offered shorts beside a correctly chosen long-sleeve top and called
+ * the pair a perfect match.
+ *
+ * Deliberately higher than the point where the torso wants covered arms
+ * (around 74F, via UNDER_TOLERANCE). People reach for shorts well above the
+ * temperature at which they would go sleeveless, so the arms line and the legs
+ * line are not the same line and must not be derived from one another.
+ */
+export const BARE_LEG_COMFORT_F = 73;
+
+export type LegExposure = {
+  bare: boolean;
+  /** Degrees below the comfort line. Zero when the day is warm enough. */
+  below: number;
+};
+
+/**
+ * Judges what a look does for the legs, or returns null when it cannot.
+ *
+ * Null for the same two reasons the torso verdict is null: nothing covers the
+ * legs at all, or one of the pieces that does is a garment whose length the
+ * vocabulary does not fix. Silence beats a confident guess.
+ */
+export function legExposureOf(
+  items: { category: string; sub_category: string | null }[],
+  tempF: number,
+  windMph = 0,
+): LegExposure | null {
+  const legs = items.filter((i) => LEGS.has(i.category));
+  if (legs.length === 0) return null;
+
+  const coverages = legs.map(legCoverageOf);
+  if (coverages.some((c) => c === null)) return null;
+  // Only bare if nothing on the legs covers them — leggings under a romper
+  // are covered legs, whatever the romper is doing.
+  if (!coverages.every((c) => c === "bare")) return { bare: false, below: 0 };
+
+  // Same correction and the same trigger as targetInsulation: wind strips the
+  // still-air layer, and bare skin is where that is felt first.
+  const wind = windMph >= 15 && tempF < 70 ? 4 : 0;
+  return { bare: true, below: Math.max(0, BARE_LEG_COMFORT_F - (tempF - wind)) };
+}
+
+/**
+ * How much the score should lose for it.
+ *
+ * Shaped like `coveragePenalty` and for the same reason: being wrongly dressed
+ * is categorical rather than gradual, so crossing the line costs a flat amount
+ * and the distance past it only adds. The flat part alone is enough to rank an
+ * otherwise identical trousers look above a shorts one, which is the whole
+ * point — this ranks, it does not filter, because a wardrobe holding only
+ * shorts should still get an answer rather than an empty screen.
+ *
+ * The cap sits below `coveragePenalty`'s 18. Bare legs on a cold day are a
+ * real mistake but a smaller one than no coat at all.
+ */
+export function legPenalty(exposure: LegExposure): number {
+  if (!exposure.bare || exposure.below <= 0) return 0;
+  return Math.min(16, 5 + exposure.below * 0.6);
+}
+
+/** The sentence the card shows, or null when there is nothing to say. */
+export function legVerdict(exposure: LegExposure, tempF: number): string | null {
+  if (!exposure.bare || exposure.below <= 0) return null;
+  return `Bare legs at ${tempF}°F — these want about ${BARE_LEG_COMFORT_F}°F and up`;
+}
+
 /**
  * Whether a garment is one the sun, not the thermometer, decides on.
  *

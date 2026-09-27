@@ -4,6 +4,9 @@ import {
   coverageOf,
   coveragePenalty,
   coverageVerdict,
+  legExposureOf,
+  legPenalty,
+  legVerdict,
   needsSun,
 } from "@/lib/insulation";
 import { itemSeasons, seasonForToday } from "@/lib/seasons";
@@ -215,6 +218,23 @@ function evaluate(
   }
 
   /*
+   * Coverage above is torso-only, so until now nothing in this function had an
+   * opinion about legs. That is how shorts came back as a "Spot on" match for
+   * a 68F morning: their stored range is the union of the spring and summer
+   * bands, 45 to 105, which contains 68 comfortably, so `degreesOutside`
+   * returned zero and every other term was about the top half of the outfit.
+   * Narrowing the band would not have fixed it either — the summer band starts
+   * at exactly 68, so a summer-only pair of shorts was in range on that
+   * morning too. Legs need their own judgement, and this is it.
+   */
+  const legs = legExposureOf(items, req.current_temp_f, req.wind_mph ?? 0);
+  if (legs) {
+    penalty += legPenalty(legs);
+    const verdict = legVerdict(legs, req.current_temp_f);
+    if (verdict) compromises.push(verdict);
+  }
+
+  /*
    * --- colour ---
    *
    * Placed here rather than with the other styling checks because the card
@@ -390,6 +410,30 @@ function interleaveByAnchor(outfits: Outfit[]): Outfit[] {
   return out;
 }
 
+/** Best first. The order the page reads in, and the order of the headings. */
+export const MATCH_ORDER: MatchLevel[] = ["exact", "close", "alternative"];
+
+/**
+ * Groups the list into Spot on, then Close match, then Alternative.
+ *
+ * Score alone does not do this. A look with no compromises and a plain palette
+ * can score below one that is flagged for the weather but happens to be a
+ * beautiful colour match, so the two levels interleave — which is exactly what
+ * the page showed: two Spot on, two Close match, two Spot on. Fine as a
+ * ranking, tiring to shop from, because deciding whether to keep scrolling
+ * means reading every badge.
+ *
+ * The anchor interleave still runs, but inside each band rather than across
+ * the whole list. That keeps the property it exists for — no single top
+ * monopolising the top of the page — while making the three bands contiguous.
+ * Ordering happens before the page is sliced, so a band spans pages cleanly.
+ */
+function bandByMatchLevel(outfits: Outfit[]): Outfit[] {
+  return MATCH_ORDER.flatMap((level) =>
+    interleaveByAnchor(outfits.filter((o) => o.matchLevel === level)),
+  );
+}
+
 export function generateOutfits(
   items: WardrobeItemView[],
   req: OutfitRequest,
@@ -530,7 +574,7 @@ export function generateOutfits(
     outfits.push(...built.slice(0, perAnchor));
   }
 
-  const ordered = interleaveByAnchor(outfits);
+  const ordered = bandByMatchLevel(outfits);
   return options.limit === undefined ? ordered : ordered.slice(0, options.limit);
 }
 

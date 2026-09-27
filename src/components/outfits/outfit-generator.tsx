@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Bookmark,
   Droplets,
@@ -16,7 +16,7 @@ import { SEASON_LABELS } from "@/types/wardrobe";
 import type { Weather, WeatherCondition } from "@/lib/weather";
 import { fetchWeatherDirect } from "@/lib/weather-client";
 import { OCCASIONS, occasionLabel, type Occasion } from "@/types/wardrobe";
-import { OutfitCard } from "@/components/outfits/outfit-card";
+import { MATCH_LABEL, OutfitCard } from "@/components/outfits/outfit-card";
 import { WeatherIcon } from "@/components/outfits/weather-icon";
 import { TempUnitToggle, useTempUnit } from "@/components/temp-unit-toggle";
 import { cToF, displayTemp, displayTempText } from "@/lib/temp";
@@ -503,8 +503,22 @@ export function OutfitGenerator() {
           {outfits && outfits.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 2xl:grid-cols-4">
               {outfits.map((outfit, index) => (
+                <Fragment key={outfit.id}>
+                  {/* The engine returns the looks banded by match level, so a
+                      change of level is a change of section. Rendered off the
+                      previous card rather than a precomputed grouping, which
+                      keeps it correct when "Show more" appends to the list and
+                      a band runs across the join. */}
+                  {(index === 0 ||
+                    outfits[index - 1].matchLevel !== outfit.matchLevel) && (
+                    <h3
+                      className="col-span-full mt-2 flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground first:mt-0"
+                    >
+                      {MATCH_LABEL[outfit.matchLevel]}
+                      <span aria-hidden className="h-px flex-1 bg-border" />
+                    </h3>
+                  )}
                 <OutfitCard
-                  key={outfit.id}
                   outfit={outfit}
                   rank={index + 1}
                   request={request}
@@ -528,6 +542,7 @@ export function OutfitGenerator() {
                     }
                   }}
                 />
+                </Fragment>
               ))}
             </div>
           )}

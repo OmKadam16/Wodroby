@@ -16,6 +16,9 @@ import {
   coverageOf,
   coveragePenalty,
   insulationOf,
+  legCoverageOf,
+  legExposureOf,
+  legPenalty,
   needsSun,
   targetInsulation,
 } from "@/lib/insulation.ts";
@@ -31,12 +34,20 @@ function check(label, actual, predicate, expectation) {
   );
 }
 
-const g = (category, layering_role, sleeve_length, apparent_weight, warmth) => ({
+const g = (
   category,
   layering_role,
   sleeve_length,
   apparent_weight,
   warmth,
+  sub_category = null,
+) => ({
+  category,
+  layering_role,
+  sleeve_length,
+  apparent_weight,
+  warmth,
+  sub_category,
 });
 
 // The real rows, verbatim from wardrobe_items.
@@ -45,7 +56,14 @@ const vest = g("top", "base_layer", "sleeveless", "medium", "low");
 const polo = g("top", "base_layer", "long", "medium", "medium");
 const sweatshirt = g("top", "base_layer", "long", "medium", "medium");
 const jacket = g("outerwear", "outerwear", "long", "heavy", "medium");
-const jeans = g("bottom", "base_layer", null, "light", "low");
+const jeans = g("bottom", "base_layer", null, "light", "low", "jeans");
+// The two real pairs of shorts. Both were offered at 68F: the first because
+// spring + summer unions to 45-105, the second because the summer band starts
+// at exactly 68.
+const shorts = g("bottom", "base_layer", null, "light", "low", "shorts");
+const summerShorts = g("bottom", "base_layer", null, null, null, "shorts");
+// Length varies and the vocabulary does not fix it, so it must go unjudged.
+const skirt = g("bottom", "base_layer", null, "light", "low", "skirt");
 const sneakers = g("footwear", "footwear", null, "medium", "low");
 const cap = g("accessory", "standalone", null, "medium", "low");
 // Predates the reader: no attributes at all.
@@ -115,6 +133,37 @@ check("sweatshirt + jacket at 40F is right", at(40, [sweatshirt, jacket, jeans])
         !at(40, [sweatshirt, jacket, jeans]).over, "layering earns its place");
 check("sweatshirt + jacket at 75F is too warm", at(75, [sweatshirt, jacket, jeans]).gap,
   () => at(75, [sweatshirt, jacket, jeans]).over, "and is not free");
+
+console.log("\nLegs, at 68F (20C) — the second report");
+console.log("-".repeat(92));
+const legs = (t, items, wind = 0) => legExposureOf(items, t, wind);
+check("shorts read as bare legs", String(legCoverageOf(shorts)),
+  (v) => v === "bare", "a fact about shorts, from the vocabulary");
+check("jeans read as covered", String(legCoverageOf(jeans)),
+  (v) => v === "full", "likewise");
+check("a skirt is not judged", String(legCoverageOf(skirt)),
+  (v) => v === "null", "mini or midi — the vocabulary does not say");
+check("shorts at 68F are bare-legged", String(legs(68, [polo, shorts]).bare),
+  (v) => v === "true", "THE REPORT: offered beside a long-sleeve top");
+check("  and lose points for it", legPenalty(legs(68, [polo, shorts])),
+  (v) => v > 0, "so trousers outrank them");
+check("summer-only shorts too", legPenalty(legs(68, [polo, summerShorts])),
+  (v) => v > 0, "68F is inside the summer band — the range could not catch this");
+check("jeans at 68F cost nothing", legPenalty(legs(68, [polo, jeans])),
+  (v) => v === 0, "covered legs, no comment");
+check("shorts at 55F cost more than at 68F",
+  legPenalty(legs(55, [polo, shorts])) - legPenalty(legs(68, [polo, shorts])),
+  (v) => v > 0, "colder is worse");
+check("shorts at 80F cost nothing", legPenalty(legs(80, [tee, shorts])),
+  (v) => v === 0, "what shorts are for");
+check("shorts at 73F cost nothing", legPenalty(legs(73, [tee, shorts])),
+  (v) => v === 0, "the line, not a degree below it");
+check("a skirt look is unjudged", String(legs(68, [polo, skirt])),
+  (v) => v === "null", "silence beats a confident guess");
+check("a look with no bottom is unjudged", String(legs(68, [polo])),
+  (v) => v === "null", "nothing on the legs to weigh");
+check("wind makes bare legs worse", legPenalty(legs(68, [polo, shorts], 20)),
+  (v) => v > legPenalty(legs(68, [polo, shorts])), "bare skin feels it first");
 
 console.log("\nHonesty about what was never measured");
 console.log("-".repeat(92));

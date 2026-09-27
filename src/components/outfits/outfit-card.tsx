@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CATEGORY_LABELS } from "@/types/wardrobe";
 import { cn } from "@/lib/utils";
 
-const MATCH_LABEL: Record<MatchLevel, string> = {
+export const MATCH_LABEL: Record<MatchLevel, string> = {
   exact: "Spot on",
   close: "Close match",
   alternative: "Alternative",
