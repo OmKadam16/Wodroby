@@ -478,6 +478,13 @@ export const OUTFIT_PAGE_SIZE = 60;
 export type GenerateOptions = {
   /** Maximum outfits returned. Omit for every look the wardrobe allows. */
   limit?: number;
+  /**
+   * Build only the looks that contain this item id. The piece takes its slot
+   * outright — for a layer or an accessory, "going without" stops being an
+   * option — so the answer to "can this piece make a good look?" is every
+   * look that could say yes, and none of the thousands that could not.
+   */
+  mustInclude?: string;
 };
 
 /**
@@ -595,6 +602,14 @@ export function generateOutfits(
   const allOuterwear = ranked("outerwear");
   const allAccessories = ranked("accessory");
 
+  const must = options.mustInclude
+    ? pool.find((p) => p.item.id === options.mustInclude) ?? null
+    : null;
+  // Asked for, and not wearable today: there is no look to build.
+  if (options.mustInclude && !must) return [];
+  const only = (category: string, list: Assessment[]) =>
+    must && must.item.category === category ? [must] : list;
+
   // Anchors are the top+bottom pairs (and one-pieces) — the part of a look a
   // person actually recognises. They are capped first and hardest, because
   // every anchor must survive for the wardrobe to feel represented.
@@ -604,17 +619,22 @@ export function generateOutfits(
     Math.min(allOnePieces.length, cap);
   while (anchorCap > 1 && anchorCount(anchorCap) > MAX_COMBINATIONS) anchorCap--;
 
-  const tops = allTops.slice(0, anchorCap);
-  const bottoms = allBottoms.slice(0, anchorCap);
-  const onePieces = allOnePieces.slice(0, anchorCap);
+  // A one-piece is a whole anchor, so pinning one rules out top+bottom pairs.
+  const pinnedOnePiece = must?.item.category === "one_piece";
+  const tops = pinnedOnePiece ? [] : only("top", allTops).slice(0, anchorCap);
+  const bottoms = pinnedOnePiece ? [] : only("bottom", allBottoms).slice(0, anchorCap);
+  const onePieces =
+    must && (must.item.category === "top" || must.item.category === "bottom")
+      ? []
+      : only("one_piece", allOnePieces).slice(0, anchorCap);
 
   // Shoes, layers and accessories are never trimmed. They multiply out fast,
   // so instead of dropping options the best completions of each anchor are
   // kept — which is why a big wardrobe still shows every top, just with fewer
   // variations of the same look.
-  const footwear = allFootwear;
-  const outerwear = allOuterwear;
-  const accessories = allAccessories;
+  const footwear = only("footwear", allFootwear);
+  const outerwear = only("outerwear", allOuterwear);
+  const accessories = only("accessory", allAccessories);
 
   /*
    * What counts as an outfit: something on the torso, something on the legs,
@@ -663,6 +683,8 @@ export function generateOutfits(
     if (list.length === 0) return [null];
     const take = Math.min(list.length, optionalCap);
     const window = Array.from({ length: take }, (_, i) => list[(offset + i) % list.length]);
+    // The pinned piece is not optional in its own slot.
+    if (must && list.length === 1 && list[0] === must) return window;
     return [...window, null];
   };
 

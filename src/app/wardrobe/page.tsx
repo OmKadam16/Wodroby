@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AddItemDialog } from "@/components/wardrobe/add-item-dialog";
 import { WardrobeGrid } from "@/components/wardrobe/wardrobe-grid";
+import { GapFinder } from "@/components/wardrobe/gap-finder";
 import { withSignedUrls } from "@/lib/storage";
 import type { WardrobeItem } from "@/types/wardrobe";
 
@@ -39,6 +40,13 @@ export default async function WardrobePage() {
         <p className="mb-4 text-sm text-destructive">
           Couldn&apos;t load your wardrobe. {error.message}
         </p>
+      )}
+
+      {/* An empty wardrobe needs everything, which is not advice. */}
+      {items.length >= 3 && (
+        <div className="mb-6">
+          <GapFinder />
+        </div>
       )}
 
       <WardrobeGrid items={items} />

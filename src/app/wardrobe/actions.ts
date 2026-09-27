@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { conditionsFor, seasonsToTempRange } from "@/lib/seasons";
 import { BUCKET, signOriginals, storagePath } from "@/lib/storage";
+import type { WeatherBin } from "@/lib/climate";
+import { findGaps, type GapReport } from "@/lib/gap-finder";
 import type { WardrobeItem } from "@/types/wardrobe";
 import {
   APPARENT_WEIGHTS,
@@ -285,6 +287,56 @@ export type AnalysisPatch = {
   warmth: WarmthLevel | null;
   seasons: Season[];
 };
+
+/**
+ * "What should I buy next?" for the signed-in wardrobe.
+ *
+ * The year of weather arrives already grouped from the browser — never the
+ * coordinates — and is checked before the engine is run hundreds of times
+ * over it. Laundry is counted as owned: a shirt in the wash is not a gap.
+ */
+export async function findWardrobeGaps(
+  bins: WeatherBin[],
+): Promise<{ ok: true; report: GapReport } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const valid =
+    Array.isArray(bins) &&
+    bins.length > 0 &&
+    bins.length <= 80 &&
+    bins.every(
+      (b) =>
+        Number.isFinite(b?.temp_f) &&
+        Math.abs(b.temp_f) <= 140 &&
+        typeof b.rainy === "boolean" &&
+        Number.isInteger(b.days) &&
+        b.days > 0,
+    ) &&
+    bins.reduce((sum, b) => sum + b.days, 0) <= 370;
+  if (!valid) return { ok: false, error: "The weather history looked wrong. Try again." };
+
+  const { data, error } = await supabase
+    .from("wardrobe_items")
+    .select("*")
+    .eq("user_id", user.id);
+  if (error) return { ok: false, error: error.message };
+
+  // No photos are shown, so nothing is signed.
+  const items = ((data ?? []) as WardrobeItem[]).map((item) => ({
+    ...item,
+    display_url: "",
+  }));
+  const clean = bins.map(({ temp_f, rainy, days }) => ({
+    temp_f: Math.round(temp_f),
+    rainy,
+    days,
+  }));
+  return { ok: true, report: findGaps(items, clean, user.id) };
+}
 
 /**
  * Puts pieces in the wash, or takes them out.
