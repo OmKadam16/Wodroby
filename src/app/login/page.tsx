@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { AuthForm } from "@/components/auth-form";
+import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
   return (
     <Suspense>
-      <AuthForm mode="login" />
+      <LoginForm />
     </Suspense>
   );
 }

@@ -16,6 +16,12 @@ export default async function SettingsPage() {
 
   if (!user) redirect("/login");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("id", user.id)
+    .maybeSingle();
+
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
       <header className="mb-6">
@@ -23,7 +29,15 @@ export default async function SettingsPage() {
           Settings
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Signed in as {user.email}
+          {profile?.username ? (
+            <>
+              Signed in as <span className="font-medium text-foreground">{profile.username}</span>
+              {" · "}
+              {user.email}
+            </>
+          ) : (
+            <>Signed in as {user.email}</>
+          )}
         </p>
       </header>
 

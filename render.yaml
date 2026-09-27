@@ -44,3 +44,10 @@ services:
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
+
+      # Server only, read at runtime, never sent to the browser. Lets the
+      # server look up the email behind a username at sign-in; the database
+      # holds only its SHA-256 (supabase/migrations/0012_usernames.sql).
+      # Without it, nobody can sign in.
+      - key: LOGIN_LOOKUP_KEY
+        sync: false
