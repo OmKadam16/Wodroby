@@ -13,6 +13,7 @@ import {
   FORMALITIES,
   isSeason,
   LAYERING_ROLES,
+  OCCASIONS,
   SLEEVE_LENGTHS,
   WARMTH_LEVELS,
   type ApparentWeight,
@@ -58,6 +59,29 @@ function optionalAttribute<T extends string>(
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+/*
+ * Mirrors the limits in supabase/migrations/0011_input_limits.sql. The
+ * database enforces them either way; checking here first means the wearer is
+ * told which field is too long instead of seeing a constraint name.
+ */
+const LIMITS = {
+  item_name: 80,
+  sub_category: 60,
+  primary_color: 40,
+  wear_notes: 500,
+  image_url: 500,
+  secondary_colors: 8,
+  color_name: 40,
+} as const;
+
+function colorListOk(colors: unknown): colors is string[] {
+  return (
+    Array.isArray(colors) &&
+    colors.length <= LIMITS.secondary_colors &&
+    colors.every((c) => typeof c === "string" && c.length <= LIMITS.color_name)
+  );
+}
+
 export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -74,6 +98,21 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
     return { ok: false, error: "Invalid formality." };
   if (!LAYERING_ROLES.includes(input.layering_role))
     return { ok: false, error: "Invalid layering role." };
+  if (input.item_name.trim().length > LIMITS.item_name)
+    return { ok: false, error: `Keep the name under ${LIMITS.item_name} characters.` };
+  if (input.sub_category.trim().length > LIMITS.sub_category)
+    return { ok: false, error: `Keep the type under ${LIMITS.sub_category} characters.` };
+  if (input.primary_color.trim().length > LIMITS.primary_color)
+    return { ok: false, error: `Keep the colour under ${LIMITS.primary_color} characters.` };
+  if (input.wear_notes.trim().length > LIMITS.wear_notes)
+    return { ok: false, error: `Keep the notes under ${LIMITS.wear_notes} characters.` };
+  if (input.image_url.length > LIMITS.image_url)
+    return { ok: false, error: "Image path is invalid." };
+  if (!colorListOk(input.secondary_colors))
+    return { ok: false, error: "Invalid secondary colours." };
+  const occasions = [...new Set(input.occasions)].filter((o) =>
+    (OCCASIONS as readonly string[]).includes(o),
+  );
 
   // Deduped here rather than in the database: `seasons <@ array[...]` accepts
   // {summer,summer}, and catching that in a CHECK would need a subquery, which
@@ -135,7 +174,7 @@ export async function saveItem(input: SaveItemInput): Promise<ActionResult> {
     // Kept coherent as a derived mirror so the legacy readers of this column
     // — suitsRain's fallback, cached outfit snapshots — keep working.
     suitable_conditions: conditionsFor(seasons, rainReady),
-    occasions: input.occasions,
+    occasions,
     wear_notes: input.wear_notes.trim() || null,
     layering_role: input.layering_role,
   });
@@ -418,6 +457,12 @@ export async function applyAnalysis(
 
   const seasons = [...new Set(patch.seasons)].filter(isSeason);
   if (seasons.length === 0) return { ok: false, error: "Derived no season." };
+  if (
+    patch.primary_color.trim().length > LIMITS.primary_color ||
+    !colorListOk(patch.secondary_colors)
+  ) {
+    return { ok: false, error: "Invalid colour." };
+  }
 
   const complete =
     patch.color_l !== null && patch.color_c !== null && patch.color_h !== null;

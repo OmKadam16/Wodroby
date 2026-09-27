@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { fetchWeather } from "@/lib/weather";
+import { guardApiRoute } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/weather?lat=..&lon=.. — proxies Open-Meteo (no API key needed). */
 export async function GET(request: Request) {
+  // Only the fallback when the browser can't reach Open-Meteo itself, so a
+  // real visitor needs this once per page load at most.
+  const refused = await guardApiRoute("weather", 10);
+  if (refused) return refused;
+
   const { searchParams } = new URL(request.url);
   const lat = Number(searchParams.get("lat"));
   const lon = Number(searchParams.get("lon"));

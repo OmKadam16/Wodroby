@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardApiRoute } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,12 +14,22 @@ export type GeoResult = {
 
 /** GET /api/geocode?q=mumbai — city search without exposing the browser to CORS/CSP issues. */
 export async function GET(request: Request) {
+  // Searches fire on submit, not per keystroke, so 20 a minute is generous.
+  const refused = await guardApiRoute("geocode", 20);
+  if (refused) return refused;
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
 
   if (!q || q.length < 2) {
     return NextResponse.json(
       { error: "Type at least 2 letters to search." },
+      { status: 400 },
+    );
+  }
+  if (q.length > 100) {
+    return NextResponse.json(
+      { error: "That's too long for a place name." },
       { status: 400 },
     );
   }

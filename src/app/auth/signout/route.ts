@@ -48,10 +48,10 @@ async function signOut(request: Request) {
   return response;
 }
 
+/*
+ * POST only. A GET handler let any page sign visitors out with
+ * <img src=".../auth/signout">; the sign-out button already POSTs.
+ */
 export async function POST(request: Request) {
-  return signOut(request);
-}
-
-export async function GET(request: Request) {
   return signOut(request);
 }

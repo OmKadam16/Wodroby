@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { Nav } from "@/components/nav";
 import { NavGate } from "@/components/nav-gate";
@@ -41,6 +42,8 @@ export default async function RootLayout({
   // Signed in, the account decides the theme on every device. Signed out,
   // each device keeps its own.
   const account = await getAccountTheme();
+  // Set per request by src/proxy.ts; the CSP refuses inline scripts without it.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     /* The font variables must sit on <html>, not <body>: Tailwind's `@theme`
@@ -58,6 +61,10 @@ export default async function RootLayout({
         {/* Applies a saved theme before first paint, so switching pages or
             reloading never flashes the wrong palette. */}
         <script
+          nonce={nonce}
+          // Browsers blank a script's nonce attribute once it has run, so
+          // the client never sees the value the server rendered.
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: themeInitScript(account?.theme ?? null) }}
         />
       </head>

@@ -534,7 +534,7 @@ export function AddItemDialog() {
                     </div>
                     <div className="flex flex-1 flex-col gap-1.5">
                       <Label htmlFor={`name-${d.id}`} className="text-xs">Name <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                      <Input id={`name-${d.id}`} value={d.item_name} placeholder={`${d.sub_category} #`} onChange={(e) => patchDraft(d.id, { item_name: e.target.value })} className="h-9" />
+                      <Input id={`name-${d.id}`} value={d.item_name} placeholder={`${d.sub_category} #`} onChange={(e) => patchDraft(d.id, { item_name: e.target.value })} maxLength={80} className="h-9" />
                       <Button variant="ghost" size="sm" className="h-7 self-start px-2 text-xs" onClick={() => removeDraft(d.id)}><Trash2 className="size-3.5" />Remove</Button>
                     </div>
                   </div>
