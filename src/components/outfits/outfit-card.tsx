@@ -1,12 +1,12 @@
 import { useState, useTransition } from "react";
 import { GarmentImage } from "@/components/garment-image";
-import { AlertTriangle, Bookmark, Check, Loader2, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Bookmark, Check, Loader2, Sparkles, WashingMachine, X } from "lucide-react";
 import type { MatchLevel, Outfit, OutfitRequest } from "@/lib/outfit-engine";
 import { useTempUnit } from "@/components/temp-unit-toggle";
 import { displayTempText } from "@/lib/temp";
 import { dismissOutfit, toggleSaveOutfit } from "@/app/outfits/actions";
 import { Button } from "@/components/ui/button";
-import { CATEGORY_LABELS } from "@/types/wardrobe";
+import { CATEGORY_LABELS, isInWash } from "@/types/wardrobe";
 import { cn } from "@/lib/utils";
 
 export const MATCH_LABEL: Record<MatchLevel, string> = {
@@ -68,6 +68,9 @@ export function OutfitCard({
   const [unit] = useTempUnit();
   const MatchIcon = MATCH_ICON[outfit.matchLevel];
   const layout = gridFor(outfit.items.length);
+  // Only a saved look can hold laundry: generation never sees it. It stays
+  // listed because it was kept on purpose, but it should not look wearable.
+  const washed = outfit.items.filter(isInWash);
 
   function handleSave() {
     if (!request) return;
@@ -145,7 +148,12 @@ export function OutfitCard({
       <div className={cn("grid gap-2 px-3.5", layout.className)}>
         {outfit.items.map((item) => (
           <div key={item.id}>
-            <div className="garment-tile relative aspect-square overflow-hidden rounded-xl">
+            <div
+              className={cn(
+                "garment-tile relative aspect-square overflow-hidden rounded-xl",
+                isInWash(item) && "opacity-50",
+              )}
+            >
               <GarmentImage
                 src={item.display_url}
                 alt={item.item_name}
@@ -174,6 +182,16 @@ export function OutfitCard({
           </div>
         ))}
       </div>
+
+      {washed.length > 0 && (
+        <p className="mx-3.5 mt-3 flex gap-2 text-[13px] leading-[1.45] text-muted-foreground">
+          <WashingMachine className="mt-0.5 size-3.5 shrink-0 text-clay-ink" />
+          <span>
+            {washed.map((i) => i.item_name).join(", ")}{" "}
+            {washed.length === 1 ? "is" : "are"} in the wash
+          </span>
+        </p>
+      )}
 
       {(outfit.reasons.length > 0 || outfit.compromises.length > 0) && (
         <ul className="mt-3.5 flex flex-col gap-[7px] border-t border-border px-3.5 py-4">

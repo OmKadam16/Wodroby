@@ -117,8 +117,15 @@ export type WardrobeItem = {
   occasions: string[];
   wear_notes: string | null;
   layering_role: LayeringRole;
+  /** When the piece went in the wash; null when clean. Absent on cached
+   *  outfit snapshots that predate the column — treat that as clean too. */
+  in_wash_since?: string | null;
   created_at: string;
 };
+
+export function isInWash(item: Pick<WardrobeItem, "in_wash_since">): boolean {
+  return Boolean(item.in_wash_since);
+}
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   top: "Top",

@@ -287,6 +287,35 @@ export type AnalysisPatch = {
 };
 
 /**
+ * Puts pieces in the wash, or takes them out.
+ *
+ * Takes a list so that one card's toggle and "laundry's done" are the same
+ * call. Scoped to the owner in the query as well as by policy, like the rest.
+ */
+export async function setInWash(
+  ids: string[],
+  inWash: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+  if (ids.length === 0) return { ok: true };
+
+  const { error } = await supabase
+    .from("wardrobe_items")
+    .update({ in_wash_since: inWash ? new Date().toISOString() : null })
+    .in("id", ids)
+    .eq("user_id", user.id);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/wardrobe");
+  revalidatePath("/outfits");
+  return { ok: true };
+}
+
+/**
  * Writes one item's re-read.
  *
  * Deliberately not touching `category`, `sub_category` or `item_name`. Those

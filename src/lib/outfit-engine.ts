@@ -11,6 +11,7 @@ import {
 } from "@/lib/insulation";
 import { itemSeasons, seasonForToday } from "@/lib/seasons";
 import {
+  isInWash,
   occasionLabel,
   type Formality,
   type Occasion,
@@ -599,6 +600,11 @@ export function missingSlots(items: WardrobeItem[], temp?: number): string[] {
   return missing;
 }
 
+/**
+ * Takes the whole wardrobe, laundry included, so it can tell "you don't own
+ * shoes" apart from "your shoes are in the wash" — the fix for each is
+ * different, and only one of them is a trip to the shops.
+ */
 export function explainEmptyResult(
   items: WardrobeItem[],
   req: OutfitRequest,
@@ -610,5 +616,15 @@ export function explainEmptyResult(
   if (missing.length > 0) {
     return `You're missing ${missing.join(" and ")} for a full outfit. Every look needs a top, a bottom and shoes — jackets and accessories are optional extras.`;
   }
-  return `Nothing you own is rated close to ${req.current_temp_f}°F. Try All Season pieces or widen a temperature range.`;
+  const clean = items.filter((i) => !isInWash(i));
+  const washed = items.length - clean.length;
+  const missingClean = missingSlots(clean);
+  if (missingClean.length > 0) {
+    return `You own ${missingClean.join(" and ")}, just not a clean one right now. Mark something clean on the Wardrobe page to get looks again.`;
+  }
+  const laundry =
+    washed > 0
+      ? ` ${washed === 1 ? "One piece is" : `${washed} pieces are`} in the wash, too.`
+      : "";
+  return `Nothing you own is rated close to ${req.current_temp_f}°F. Try All Season pieces or widen a temperature range.${laundry}`;
 }

@@ -80,6 +80,9 @@ export async function generateOutfitsAction(
     .from("wardrobe_items")
     .select("*")
     .eq("user_id", user.id)
+    // Laundry is left out here rather than in the engine, so nothing
+    // downstream — scoring, the pool, the notice — ever sees it.
+    .is("in_wash_since", null)
     .lte("min_temp_f", temp + 40)
     .gte("max_temp_f", temp - 40);
 

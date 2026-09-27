@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Shirt, Sun, Snowflake, Sprout, Leaf, Sparkles } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, Shirt, Sun, Snowflake, Sprout, Leaf, Sparkles, WashingMachine } from "lucide-react";
+import { setInWash } from "@/app/wardrobe/actions";
 import { ItemCard } from "@/components/wardrobe/item-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WardrobeItemView } from "@/lib/storage";
-import type { Category, Season } from "@/types/wardrobe";
+import { isInWash, type Category, type Season } from "@/types/wardrobe";
 import { itemSeasons } from "@/lib/seasons";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +40,24 @@ const SEASON_CHIPS: {
 export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
   const [tab, setTab] = useState("all");
   const [season, setSeason] = useState("any");
+  const [washOnly, setWashOnly] = useState(false);
+  const [clearing, startClearing] = useTransition();
+  const router = useRouter();
+
+  const washed = useMemo(() => items.filter(isInWash), [items]);
+  // Falls away on its own once the last piece comes out of the wash, rather
+  // than leaving an empty filter nobody can see the chip for.
+  const showWash = washOnly && washed.length > 0;
+
+  function markAllClean() {
+    startClearing(async () => {
+      const result = await setInWash(washed.map((i) => i.id), false);
+      if (result.ok) {
+        setWashOnly(false);
+        router.refresh();
+      }
+    });
+  }
 
   const filtered = useMemo(() => {
     const categories = TABS.find((t) => t.value === tab)?.categories ?? [];
@@ -45,11 +65,12 @@ export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
     return items.filter((item) => {
       if (categories.length > 0 && !categories.includes(item.category)) return false;
       if (wanted && !itemSeasons(item).includes(wanted)) return false;
+      if (showWash && !isInWash(item)) return false;
       return true;
     });
-  }, [items, tab, season]);
+  }, [items, tab, season, showWash]);
 
-  const isFiltered = tab !== "all" || season !== "any";
+  const isFiltered = tab !== "all" || season !== "any" || showWash;
 
   return (
     <div className="flex flex-col gap-4">
@@ -89,13 +110,44 @@ export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
             </button>
           );
         })}
+        {washed.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setWashOnly((v) => !v)}
+            aria-pressed={showWash}
+            className={cn(
+              "inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px] transition active:scale-95",
+              showWash
+                ? "border-primary bg-primary font-medium text-primary-foreground"
+                : "border-dashed border-border bg-card hover:bg-accent",
+            )}
+          >
+            <WashingMachine
+              className={cn("size-3.5", showWash ? "text-primary-foreground" : "text-clay-ink")}
+            />
+            In the wash ({washed.length})
+          </button>
+        )}
       </div>
 
-      <p className="eyebrow">
-        {isFiltered
-          ? `${filtered.length} of ${items.length}`
-          : `${items.length} ${items.length === 1 ? "piece" : "pieces"}`}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="eyebrow">
+          {isFiltered
+            ? `${filtered.length} of ${items.length}`
+            : `${items.length} ${items.length === 1 ? "piece" : "pieces"}`}
+        </p>
+        {showWash && (
+          <button
+            type="button"
+            onClick={markAllClean}
+            disabled={clearing}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-clay-ink underline underline-offset-4 disabled:opacity-60"
+          >
+            {clearing && <Loader2 className="size-3.5 animate-spin" />}
+            Mark all clean
+          </button>
+        )}
+      </div>
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-6 py-16 text-center">
@@ -116,6 +168,7 @@ export function WardrobeGrid({ items }: { items: WardrobeItemView[] }) {
               onClick={() => {
                 setTab("all");
                 setSeason("any");
+                setWashOnly(false);
               }}
               className="text-[13px] font-medium text-clay-ink underline underline-offset-4"
             >
