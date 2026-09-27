@@ -10,6 +10,7 @@ import {
   needsSun,
 } from "@/lib/insulation";
 import { itemSeasons, seasonForToday } from "@/lib/seasons";
+import type { DayForecast } from "@/lib/weather";
 import {
   isInWash,
   occasionLabel,
@@ -73,7 +74,111 @@ export type OutfitRequest = {
    *  before, rather than one built on a guessed sky. */
   is_sunny?: boolean;
   wind_mph?: number;
+  /** The rest of today. Only sent while the temperature is the forecast's
+   *  own: a hand-set "what would I wear at 40F" has no day attached to it. */
+  day?: DayForecast;
 };
+
+/**
+ * A day whose low and high are this far apart is dressed for as a day, not a
+ * moment. Below it the current reading is close enough to the whole day that
+ * judging twice would only repeat the same verdict.
+ */
+export const DAY_SWING_F = 10;
+
+/** 13 -> "1pm". */
+export function clockLabel(hour: number): string {
+  if (hour === 0) return "midnight";
+  if (hour === 12) return "noon";
+  return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
+}
+
+/** The hour rain is expected to start, when it is dry now. */
+function rainLater(req: OutfitRequest): number | null {
+  if (req.is_rainy) return null;
+  return req.day?.rain_from_hour ?? null;
+}
+
+function partOfDay(hour: number): string {
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}
+
+/**
+ * Judges a look against the whole day rather than this minute.
+ *
+ * Checked twice, because a day with a cold start and a warm finish asks two
+ * different questions: is the full look enough at the coldest hour, and once
+ * the outer layer comes off, is what is left too much at the warmest? A look
+ * with no outer layer has nothing to take off and must answer both as it is,
+ * which is exactly why a removable layer wins on these days.
+ *
+ * Returns null when the day is steady or a torso piece is unmeasured; the
+ * caller then judges the current reading alone, as it always has.
+ */
+function judgeDay(
+  items: WardrobeItemView[],
+  req: OutfitRequest,
+): { penalty: number; reason: string | null; compromise: string | null } | null {
+  const day = req.day;
+  if (!day || day.high_f - day.low_f < DAY_SWING_F) return null;
+
+  const wind = req.wind_mph ?? 0;
+  const layer = items.find((i) => i.category === "outerwear");
+  const cold = coverageOf(items, day.low_f, wind);
+  const warm = coverageOf(
+    layer ? items.filter((i) => i.category !== "outerwear") : items,
+    day.high_f,
+    wind,
+  );
+  if (!cold || !warm) return null;
+
+  const coldest = `${day.low_f}°F ${partOfDay(day.low_hour)}`;
+  const warmest = `${clockLabel(day.high_hour)} (${day.high_f}°F)`;
+
+  if (cold.under) {
+    return {
+      penalty: coveragePenalty(cold),
+      reason: null,
+      compromise: layer
+        ? `Still light for the ${coldest}`
+        : `Light for the ${coldest} — bring a layer`,
+    };
+  }
+  if (cold.over) {
+    return {
+      penalty: coveragePenalty(cold),
+      reason: null,
+      compromise: `Too warm even for the ${coldest}`,
+    };
+  }
+  if (warm.over) {
+    return {
+      penalty: coveragePenalty(warm),
+      reason: null,
+      compromise: layer
+        ? `Warm by ${warmest}, even with the ${layer.item_name} off`
+        : `Too warm by ${warmest}`,
+    };
+  }
+  if (layer && warm.under) {
+    // Too light without the layer even at the warmest hour: it simply stays
+    // on. Not a compromise, but "off by 2pm" would be untrue.
+    return {
+      penalty: 0,
+      reason: `${layer.item_name} on all day, ${day.low_f}°F to ${day.high_f}°F`,
+      compromise: null,
+    };
+  }
+  return {
+    penalty: 0,
+    reason: layer
+      ? `${layer.item_name} for the ${coldest}, off by ${warmest}`
+      : `Right weight from ${day.low_f}°F to ${day.high_f}°F`,
+    compromise: null,
+  };
+}
 
 /** How well an outfit answers the request. */
 export type MatchLevel = "exact" | "close" | "alternative";
@@ -206,8 +311,15 @@ function evaluate(
     );
   }
 
-  const coverage = coverageOf(items, req.current_temp_f, req.wind_mph ?? 0);
-  if (coverage) {
+  const wholeDay = judgeDay(items, req);
+  const coverage = wholeDay
+    ? null
+    : coverageOf(items, req.current_temp_f, req.wind_mph ?? 0);
+  if (wholeDay) {
+    penalty += wholeDay.penalty;
+    if (wholeDay.compromise) compromises.push(wholeDay.compromise);
+    else if (wholeDay.reason && stretched.length === 0) reasons.push(wholeDay.reason);
+  } else if (coverage) {
     penalty += coveragePenalty(coverage);
     const verdict = coverageVerdict(coverage, req.current_temp_f);
     if (verdict.isCompromise) compromises.push(verdict.text);
@@ -301,6 +413,7 @@ function evaluate(
   }
 
   // --- rain ---
+  const rainFrom = rainLater(req);
   if (req.is_rainy) {
     const ready = picks.filter((p) => p.rainSafe);
     penalty += (picks.length - ready.length) * 4;
@@ -308,6 +421,16 @@ function evaluate(
       reasons.push("Every piece handles rain");
     } else if (ready.length === 0) {
       compromises.push("None of this is rain-friendly");
+    }
+  } else if (rainFrom !== null) {
+    // Half the weight of rain that is already falling: it is a forecast, and
+    // the wearer may be indoors by then.
+    const ready = picks.filter((p) => p.rainSafe);
+    penalty += (picks.length - ready.length) * 2;
+    if (ready.length === picks.length) {
+      reasons.push(`Ready for the rain from ${clockLabel(rainFrom)}`);
+    } else if (ready.length === 0) {
+      compromises.push(`Rain likely from ${clockLabel(rainFrom)} — none of this is rain-friendly`);
     }
   }
 
@@ -454,7 +577,7 @@ export function generateOutfits(
   const rank = (a: Assessment, b: Assessment) => {
     const fit = FIT_RANK[a.occasionFit] - FIT_RANK[b.occasionFit];
     if (fit !== 0) return fit;
-    if (req.is_rainy) {
+    if (req.is_rainy || rainLater(req) !== null) {
       const rain = Number(b.rainSafe) - Number(a.rainSafe);
       if (rain !== 0) return rain;
     }

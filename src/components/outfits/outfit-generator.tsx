@@ -10,7 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { generateOutfitsAction, getSavedOutfits } from "@/app/outfits/actions";
-import { OUTFIT_PAGE_SIZE, type Outfit, type OutfitRequest } from "@/lib/outfit-engine";
+import { clockLabel, OUTFIT_PAGE_SIZE, type Outfit, type OutfitRequest } from "@/lib/outfit-engine";
 import { seasonForToday } from "@/lib/seasons";
 import { SEASON_LABELS } from "@/types/wardrobe";
 import type { Weather, WeatherCondition } from "@/lib/weather";
@@ -95,6 +95,10 @@ export function OutfitGenerator() {
       is_rainy: isRainy,
       is_sunny: weather ? weather.condition === "sunny" : undefined,
       wind_mph: weather?.wind_mph,
+      // Only while the slider still reads the forecast. Moving it asks a
+      // hypothetical — "what at 40F?" — and a real day's range would answer
+      // a different question than the one asked.
+      day: weather?.day && temp === weather.temp_f ? weather.day : undefined,
     }),
     [temp, occasion, isRainy, weather],
   );
@@ -262,6 +266,14 @@ export function OutfitGenerator() {
               <p className="mt-2.5 text-[15px]">
                 {weather.description} · feels like {displayTemp(weather.feels_like_f, unit)}°
               </p>
+              {weather.day && (
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Today {displayTemp(weather.day.low_f, unit)}° →{" "}
+                  {displayTemp(weather.day.high_f, unit)}°
+                  {weather.day.rain_from_hour !== null &&
+                    ` · rain from ${clockLabel(weather.day.rain_from_hour)}`}
+                </p>
+              )}
             </div>
             <div className="grid justify-items-end gap-3">
               <WeatherIcon

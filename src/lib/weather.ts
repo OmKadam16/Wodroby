@@ -13,7 +13,33 @@ export type Weather = {
   description: string;
   is_rainy: boolean;
   wind_mph: number;
+  /** The rest of today, when the provider gave an hourly forecast. Absent
+   *  otherwise, and everything downstream then dresses for right now only. */
+  day?: DayForecast;
 };
+
+/**
+ * What the rest of the day holds, from now until late evening.
+ *
+ * Hours are local to the place, not to the browser or the server, which is
+ * why they are carried as plain numbers rather than timestamps: "off by 1pm"
+ * has to mean 1pm where the wearer is standing.
+ */
+export type DayForecast = {
+  low_f: number;
+  /** Local hour, 0–23. */
+  low_hour: number;
+  high_f: number;
+  high_hour: number;
+  /** First later hour where rain is likely, when it is dry now. */
+  rain_from_hour: number | null;
+};
+
+/** The day being dressed for ends here. Past it, whatever the night does is
+ *  someone else's outfit. */
+const DAY_END_HOUR = 22;
+/** Precipitation probability that counts as "take the rain into account". */
+const RAIN_LIKELY_PERCENT = 50;
 
 /** WMO weather interpretation codes used by Open-Meteo. */
 function interpretCode(code: number): {
@@ -175,6 +201,13 @@ export type OpenMeteoResponse = {
     weather_code?: number;
     wind_speed_10m?: number;
     precipitation?: number;
+    /** Local time, e.g. "2026-09-27T08:00" (with timezone=auto). */
+    time?: string;
+  };
+  hourly?: {
+    time?: string[];
+    temperature_2m?: (number | null)[];
+    precipitation_probability?: (number | null)[];
   };
 };
 
@@ -192,6 +225,10 @@ export function buildOpenMeteoUrl(lat: number, lon: number): URL {
     "current",
     "temperature_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation",
   );
+  url.searchParams.set("hourly", "temperature_2m,precipitation_probability");
+  // Local times, so the hours below mean what the wearer's clock says.
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("forecast_days", "1");
   url.searchParams.set("temperature_unit", "fahrenheit");
   url.searchParams.set("wind_speed_unit", "mph");
   return url;
@@ -207,6 +244,16 @@ export function openMeteoToWeather(json: unknown): Weather {
   const code = current.weather_code ?? 3;
   const { condition, description } = interpretCode(code);
   const wind = current.wind_speed_10m ?? 0;
+  const isRainy =
+    condition === "rainy" ||
+    condition === "stormy" ||
+    (current.precipitation ?? 0) > 0;
+  const day = readDay(
+    (json as OpenMeteoResponse).hourly,
+    current.time,
+    Math.round(current.temperature_2m),
+    isRainy,
+  );
 
   return {
     temp_f: Math.round(current.temperature_2m),
@@ -215,11 +262,74 @@ export function openMeteoToWeather(json: unknown): Weather {
     ),
     condition: wind >= 20 && condition === "cloudy" ? "windy" : condition,
     description,
-    is_rainy:
-      condition === "rainy" ||
-      condition === "stormy" ||
-      (current.precipitation ?? 0) > 0,
+    is_rainy: isRainy,
     wind_mph: Math.round(wind),
+    ...(day ? { day } : {}),
+  };
+}
+
+/** "2026-09-27T08:00" -> 8. Read off the string, never through Date, which
+ *  would reinterpret a local time in the runtime's own zone. */
+function hourOf(time: string): number | null {
+  const match = /T(\d{2}):/.exec(time);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Today's low, high and first likely rain, from now to DAY_END_HOUR.
+ *
+ * Returns undefined rather than a partial answer whenever the hourly block is
+ * missing or too short to say anything — late at night there is no day left
+ * to dress for, and a range built from one hour is just the current reading.
+ */
+export function readDay(
+  hourly: OpenMeteoResponse["hourly"],
+  now: string | undefined,
+  currentF: number,
+  rainingNow: boolean,
+): DayForecast | undefined {
+  const times = hourly?.time;
+  const temps = hourly?.temperature_2m;
+  if (!times || !temps || !now) return undefined;
+  const nowHour = hourOf(now);
+  const today = now.slice(0, 10);
+  if (nowHour === null) return undefined;
+
+  // The current reading is part of the day too: the hourly value for this
+  // hour is an average and can sit a degree or two away from it.
+  let low = { f: currentF, hour: nowHour };
+  let high = { f: currentF, hour: nowHour };
+  let rainFrom: number | null = null;
+  let hours = 0;
+
+  for (let i = 0; i < times.length; i++) {
+    const hour = hourOf(times[i]);
+    const f = temps[i];
+    if (hour === null || typeof f !== "number") continue;
+    if (!times[i].startsWith(today) || hour < nowHour || hour > DAY_END_HOUR) continue;
+    hours++;
+    const rounded = Math.round(f);
+    if (rounded < low.f) low = { f: rounded, hour };
+    if (rounded > high.f) high = { f: rounded, hour };
+    const chance = hourly?.precipitation_probability?.[i];
+    if (
+      !rainingNow &&
+      rainFrom === null &&
+      hour > nowHour &&
+      typeof chance === "number" &&
+      chance >= RAIN_LIKELY_PERCENT
+    ) {
+      rainFrom = hour;
+    }
+  }
+
+  if (hours < 3) return undefined;
+  return {
+    low_f: low.f,
+    low_hour: low.hour,
+    high_f: high.f,
+    high_hour: high.hour,
+    rain_from_hour: rainFrom,
   };
 }
 

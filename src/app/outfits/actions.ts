@@ -73,6 +73,7 @@ export async function generateOutfitsAction(
       typeof req.wind_mph === "number" && Number.isFinite(req.wind_mph)
         ? Math.max(0, Math.round(req.wind_mph))
         : undefined,
+    day: normalizeDay(req.day),
   };
 
   // Widen to max category tolerance (accessories 40) so flexible pieces like jeans/skirts aren't cut by SQL — engine does per-category filtering.
@@ -142,6 +143,28 @@ export async function generateOutfitsAction(
     notice:
       start === 0 && exactCount === 0 ? buildNotice(items, fresh, normalized) : null,
     emptyReason: null,
+  };
+}
+
+/**
+ * The day arrives from the browser, so every field is checked before the
+ * engine phrases a sentence out of it. Anything malformed drops the whole day
+ * rather than half of it: the engine then dresses for the current reading,
+ * which is what it did before the day existed.
+ */
+function normalizeDay(day: OutfitRequest["day"]): OutfitRequest["day"] {
+  if (!day) return undefined;
+  const temp = (n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) < 150;
+  const hour = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 23;
+  if (!temp(day.low_f) || !temp(day.high_f) || day.low_f > day.high_f) return undefined;
+  if (!hour(day.low_hour) || !hour(day.high_hour)) return undefined;
+  if (day.rain_from_hour !== null && !hour(day.rain_from_hour)) return undefined;
+  return {
+    low_f: Math.round(day.low_f),
+    low_hour: day.low_hour,
+    high_f: Math.round(day.high_f),
+    high_hour: day.high_hour,
+    rain_from_hour: day.rain_from_hour,
   };
 }
 
