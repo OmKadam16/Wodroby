@@ -8,6 +8,17 @@ import type { WardrobeItem } from "@/types/wardrobe";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Whether "What to buy next" was closed and its three days are not up. The
+ * page is rendered per request (above), so "now" is this request's now. A
+ * missing or unreadable date shows the card.
+ */
+function stillHidden(until: string | null | undefined): boolean {
+  if (!until) return false;
+  const time = Date.parse(until);
+  return Number.isFinite(time) && time > Date.now();
+}
+
 export default async function WardrobePage() {
   const supabase = await createClient();
   const {
@@ -21,6 +32,13 @@ export default async function WardrobePage() {
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("buy_next_hidden_until")
+    .eq("id", user.id)
+    .maybeSingle();
+  const buyNextClosed = stillHidden(profile?.buy_next_hidden_until);
 
   // The bucket is private: each photo gets a short-lived signed link.
   const items = await withSignedUrls(supabase, (data ?? []) as WardrobeItem[]);
@@ -43,7 +61,7 @@ export default async function WardrobePage() {
       )}
 
       {/* An empty wardrobe needs everything, which is not advice. */}
-      {items.length >= 3 && (
+      {items.length >= 3 && !buyNextClosed && (
         <div className="mb-6">
           <GapFinder />
         </div>

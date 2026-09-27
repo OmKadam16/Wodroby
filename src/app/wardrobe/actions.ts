@@ -338,6 +338,30 @@ export async function findWardrobeGaps(
   return { ok: true, report: findGaps(items, clean, user.id) };
 }
 
+/** How long "What to buy next" stays away once it is closed. */
+const BUY_NEXT_SNOOZE_DAYS = 3;
+
+/**
+ * Closes the "What to buy next" card for BUY_NEXT_SNOOZE_DAYS. Stored on the
+ * account, so it is closed on every device, and it comes back on its own.
+ */
+export async function hideBuyNext(): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You must be signed in." };
+
+  const until = new Date(Date.now() + BUY_NEXT_SNOOZE_DAYS * 24 * 60 * 60 * 1000);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ buy_next_hidden_until: until.toISOString() })
+    .eq("id", user.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/wardrobe");
+  return { ok: true };
+}
+
 /**
  * Puts pieces in the wash, or takes them out.
  *
