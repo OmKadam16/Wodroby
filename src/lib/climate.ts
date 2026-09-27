@@ -80,10 +80,17 @@ export async function fetchYear(lat: number, lon: number): Promise<WeatherBin[]>
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(buildArchiveUrl(lat, lon), {
-      signal: controller.signal,
-      cache: "no-store",
-    });
+    let response: Response;
+    try {
+      response = await fetch(buildArchiveUrl(lat, lon), {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+    } catch {
+      // The browser's own wording ("Failed to fetch") names no cause and no
+      // service. Blocked, offline and timed out all read the same to a person.
+      throw new Error("Couldn't reach the weather history service. Try again in a moment.");
+    }
     if (!response.ok) throw new Error(`Weather history returned ${response.status}.`);
     const bins = binYear(await response.json());
     if (bins.length === 0) throw new Error("No weather history for this place.");

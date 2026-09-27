@@ -43,7 +43,11 @@ const csp = [
   //
   // Only the model is fetched. The garment photo is analysed on the device and
   // is never uploaded anywhere but the user's own Supabase storage.
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com https://huggingface.co https://*.hf.co https://cdn.jsdelivr.net/npm/${isDev ? " ws://localhost:*" : ""}`,
+  //
+  // Open-Meteo is two hosts: api. for today's forecast, archive-api. for the
+  // year of history the "what to buy next" panel reads. Named one by one
+  // rather than *.open-meteo.com, like everything else here.
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com https://archive-api.open-meteo.com https://huggingface.co https://*.hf.co https://cdn.jsdelivr.net/npm/${isDev ? " ws://localhost:*" : ""}`,
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",
