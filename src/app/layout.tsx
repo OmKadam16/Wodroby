@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { Nav } from "@/components/nav";
 import { NavGate } from "@/components/nav-gate";
-import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { themeInitScript } from "@/lib/theme";
+import { getAccountTheme } from "@/lib/account-theme";
+import { ThemeSeed } from "@/components/theme-seed";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -33,9 +35,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Signed in, the account decides the theme on every device. Signed out,
+  // each device keeps its own.
+  const account = await getAccountTheme();
+
   return (
     /* The font variables must sit on <html>, not <body>: Tailwind's `@theme`
        emits --font-sans/--font-display on :root, and a :root declaration
@@ -51,9 +57,12 @@ export default function RootLayout({
       <head>
         {/* Applies a saved theme before first paint, so switching pages or
             reloading never flashes the wrong palette. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script
+          dangerouslySetInnerHTML={{ __html: themeInitScript(account?.theme ?? null) }}
+        />
       </head>
       <body>
+        {account && account.theme === null && <ThemeSeed />}
         <NavGate>
           <Nav />
         </NavGate>

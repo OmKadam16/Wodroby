@@ -2,7 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import { Check } from "lucide-react";
-import { readTheme, writeTheme, THEME_EVENT, type Theme } from "@/lib/theme";
+import { readTheme, THEME_EVENT, type Theme } from "@/lib/theme";
+import { chooseTheme } from "@/lib/choose-theme";
 import { cn } from "@/lib/utils";
 
 /* Swatch colours are written as literals, not tokens: each preview has to show
@@ -110,7 +111,7 @@ export function ThemeToggle({ columns }: { columns?: string } = {}) {
             type="button"
             role="radio"
             aria-checked={active}
-            onClick={() => writeTheme(value)}
+            onClick={() => chooseTheme(value)}
             className={cn(
               "flex flex-col gap-2 rounded-xl border p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]",
               active

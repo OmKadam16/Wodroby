@@ -9,7 +9,8 @@ import {
   useTransform,
 } from "motion/react";
 import { Check } from "lucide-react";
-import { readTheme, writeTheme, THEME_EVENT, type Theme } from "@/lib/theme";
+import { readTheme, THEME_EVENT, type Theme } from "@/lib/theme";
+import { chooseTheme } from "@/lib/choose-theme";
 
 /**
  * The four palettes as physical cards, and the control that switches between
@@ -164,7 +165,7 @@ export function ThemeStack() {
                 type="button"
                 role="radio"
                 aria-checked={active}
-                onClick={() => writeTheme(card.value)}
+                onClick={() => chooseTheme(card.value)}
                 layout={!reduce}
                 initial={reduce ? false : { opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}

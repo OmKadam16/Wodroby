@@ -3,7 +3,7 @@ export type Theme = (typeof THEMES)[number];
 
 export const THEME_KEY = "wordroby_theme";
 
-function isTheme(value: unknown): value is Theme {
+export function isTheme(value: unknown): value is Theme {
   return typeof value === "string" && (THEMES as readonly string[]).includes(value);
 }
 
@@ -48,6 +48,20 @@ export const THEME_EVENT = "wordroby:themechange";
 /** Every theme that pins an explicit palette. "system" is the absence of one. */
 const EXPLICIT: Theme[] = THEMES.filter((t): t is Theme => t !== "system");
 
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
-  THEME_KEY,
-)});if(${JSON.stringify(EXPLICIT)}.indexOf(t)>-1){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;
+/**
+ * `account` is the signed-in account's saved theme, when there is one. It
+ * overwrites this device's copy before anything reads it, so the device that
+ * did not make the change still paints the right palette on its first frame,
+ * and every component that reads localStorage afterwards agrees with it.
+ * Signed out, or never chosen, the device keeps whatever it had.
+ */
+export function themeInitScript(account: Theme | null): string {
+  const key = JSON.stringify(THEME_KEY);
+  // A validated union member, so this is only ever one of five known strings.
+  const sync = account
+    ? account === "system"
+      ? `localStorage.removeItem(${key});`
+      : `localStorage.setItem(${key},${JSON.stringify(account)});`
+    : "";
+  return `(function(){try{${sync}var t=localStorage.getItem(${key});if(${JSON.stringify(EXPLICIT)}.indexOf(t)>-1){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;
+}
